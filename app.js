@@ -37,7 +37,30 @@ function cargarFuente(key){
 }
 
 /* ================= Conversión de contornos ================= */
-// opentype path -> THREE shapes (y ya viene invertida con -y)
+// Union booleana (Clipper, regla non-zero): arregla trazos superpuestos de fuentes script
+var CLIP_ESC = 100;
+function unionRings(rings){
+  if (!rings.length) return [];
+  var subj = rings.map(function(r){ return r.map(function(p){ return { X: Math.round(p.x * CLIP_ESC), Y: Math.round(p.y * CLIP_ESC) }; }); });
+  var c = new ClipperLib.Clipper();
+  c.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
+  var tree = new ClipperLib.PolyTree();
+  c.Execute(ClipperLib.ClipType.ctUnion, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  var shapes = [];
+  function walk(node){
+    (node.Childs() || []).forEach(function(outer){
+      var s = new THREE.Shape(outer.Contour().map(function(p){ return new THREE.Vector2(p.X / CLIP_ESC, p.Y / CLIP_ESC); }));
+      (outer.Childs() || []).forEach(function(hole){
+        s.holes.push(new THREE.Path(hole.Contour().map(function(p){ return new THREE.Vector2(p.X / CLIP_ESC, p.Y / CLIP_ESC); })));
+        (hole.Childs() || []).forEach(function(sub){ walk({ Childs: function(){ return [sub]; } }); });
+      });
+      shapes.push(s);
+    });
+  }
+  walk(tree);
+  return shapes;
+}
+// opentype path -> THREE shapes (y invertida, contornos unidos con Clipper)
 function otPathToShapes(otPath){
   var sp = new THREE.ShapePath();
   otPath.commands.forEach(function(c){
@@ -46,7 +69,8 @@ function otPathToShapes(otPath){
     else if (c.type === "C") sp.bezierCurveTo(c.x1, -c.y1, c.x2, -c.y2, c.x, -c.y);
     else if (c.type === "Q") sp.quadraticCurveTo(c.x1, -c.y1, c.x, -c.y);
   });
-  return sp.toShapes(true);
+  var rings = sp.subPaths.map(function(p){ return p.getPoints(20); }).filter(function(r){ return r.length > 2; });
+  return unionRings(rings);
 }
 // baked: shape con curvas -> shape poligonal con transform (flip y / escala / offset)
 function bakeShape(shape, fx, fy){
@@ -60,9 +84,11 @@ function svgPathsToShapes(paths){
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
     paths.map(function(d){ return '<path d="' + d + '"/>'; }).join("") + "</svg>";
   var data = new THREE.SVGLoader().parse(svg);
-  var shapes = [];
-  data.paths.forEach(function(p){ p.toShapes(true).forEach(function(s){ shapes.push(s); }); });
-  return shapes;
+  var rings = [];
+  data.paths.forEach(function(p){
+    p.subPaths.forEach(function(sp){ var r = sp.getPoints(24); if (r.length > 2) rings.push(r); });
+  });
+  return unionRings(rings);
 }
 function shapesBBox(shapes){
   var box = new THREE.Box2(); var v = new THREE.Vector2();
