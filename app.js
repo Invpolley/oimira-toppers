@@ -193,6 +193,110 @@ function shapesBBox(shapes){
   return box;
 }
 
+/* ================= Vectorizador de imagenes (marching squares + suavizado) ================= */
+function msRings(mask, W, H){
+  var segs = new Map();
+  function kOf(p){ return p[0] + "," + p[1]; }
+  function add(p, q){ var k = kOf(p), a = segs.get(k); if (a) a.push(q); else segs.set(k, [q]); }
+  function f(y, x){ return (x < 0 || y < 0 || x >= W || y >= H) ? 0 : mask[y * W + x]; }
+  for (var y = -1; y < H; y++){
+    for (var x = -1; x < W; x++){
+      var a = f(y, x), b = f(y, x + 1), c = f(y + 1, x + 1), dd = f(y + 1, x);
+      var idx = a * 8 + b * 4 + c * 2 + dd;
+      if (idx === 0 || idx === 15) continue;
+      var T = [2 * x + 1, 2 * y], R = [2 * x + 2, 2 * y + 1], B = [2 * x + 1, 2 * y + 2], L = [2 * x, 2 * y + 1];
+      var ee;
+      if (idx === 1) ee = [[B, L]]; else if (idx === 2) ee = [[R, B]]; else if (idx === 3) ee = [[R, L]];
+      else if (idx === 4) ee = [[T, R]]; else if (idx === 5) ee = [[T, R], [B, L]]; else if (idx === 6) ee = [[T, B]];
+      else if (idx === 7) ee = [[T, L]]; else if (idx === 8) ee = [[L, T]]; else if (idx === 9) ee = [[B, T]];
+      else if (idx === 10) ee = [[L, T], [R, B]]; else if (idx === 11) ee = [[R, T]]; else if (idx === 12) ee = [[L, R]];
+      else if (idx === 13) ee = [[B, R]]; else ee = [[L, B]];
+      ee.forEach(function(s){ add(s[0], s[1]); });
+    }
+  }
+  var rings = [];
+  while (segs.size){
+    var startK = segs.keys().next().value;
+    var start = startK.split(",").map(Number);
+    var ring = [start], cur = startK;
+    while (true){
+      var lst = segs.get(cur);
+      if (!lst || !lst.length){ segs.delete(cur); break; }
+      var nxt = lst.pop();
+      if (!lst.length) segs.delete(cur);
+      ring.push(nxt);
+      cur = kOf(nxt);
+      if (cur === startK) break;
+    }
+    if (ring.length > 8) rings.push(ring);
+  }
+  return rings;
+}
+function rdpJS(pts, eps){
+  if (pts.length < 3) return pts;
+  var stack = [[0, pts.length - 1]], keep = new Uint8Array(pts.length);
+  keep[0] = keep[pts.length - 1] = 1;
+  while (stack.length){
+    var seg = stack.pop(), i0 = seg[0], i1 = seg[1];
+    var ax = pts[i0][0], ay = pts[i0][1], bx = pts[i1][0], by = pts[i1][1];
+    var dx = bx - ax, dy = by - ay, L = Math.sqrt(dx * dx + dy * dy) || 1;
+    var dmax = 0, im = -1;
+    for (var i = i0 + 1; i < i1; i++){
+      var dd = Math.abs(dx * (ay - pts[i][1]) - dy * (ax - pts[i][0])) / L;
+      if (dd > dmax){ dmax = dd; im = i; }
+    }
+    if (dmax > eps && im > 0){ keep[im] = 1; stack.push([i0, im], [im, i1]); }
+  }
+  var out = [];
+  for (var j = 0; j < pts.length; j++) if (keep[j]) out.push(pts[j]);
+  return out;
+}
+function chaikinJS(pts, n){
+  for (var t = 0; t < n; t++){
+    var out = [], m = pts.length;
+    for (var i = 0; i < m; i++){
+      var p = pts[i], q = pts[(i + 1) % m];
+      out.push([0.75 * p[0] + 0.25 * q[0], 0.75 * p[1] + 0.25 * q[1]]);
+      out.push([0.25 * p[0] + 0.75 * q[0], 0.25 * p[1] + 0.75 * q[1]]);
+    }
+    pts = out;
+  }
+  return pts;
+}
+// imagen (Image/canvas) -> paths SVG en viewBox 100 (silueta oscura sobre fondo claro)
+function trazarImagen(img){
+  var N = 420, cv = document.createElement("canvas");
+  cv.width = N; cv.height = N;
+  var ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, N, N);
+  ctx.drawImage(img, 0, 0, N, N);
+  var px = ctx.getImageData(0, 0, N, N).data;
+  var mask = new Uint8Array(N * N);
+  for (var i = 0; i < N * N; i++){
+    var lum = 0.299 * px[i * 4] + 0.587 * px[i * 4 + 1] + 0.114 * px[i * 4 + 2];
+    mask[i] = lum < 128 ? 1 : 0;
+  }
+  var rings = msRings(mask, N, N).filter(function(r){
+    var a = 0;
+    for (var i2 = 0; i2 < r.length; i2++){ var p = r[i2], q = r[(i2 + 1) % r.length]; a += p[0] * q[1] - q[0] * p[1]; }
+    return Math.abs(a / 2) > 160; // quitar ruido
+  });
+  if (!rings.length) return [];
+  var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  rings.forEach(function(r){ r.forEach(function(p){ if (p[0] < x0) x0 = p[0]; if (p[0] > x1) x1 = p[0]; if (p[1] < y0) y0 = p[1]; if (p[1] > y1) y1 = p[1]; }); });
+  var w = Math.max(x1 - x0, 1), h = Math.max(y1 - y0, 1);
+  var s = 92 / Math.max(w, h), ox = (100 - w * s) / 2 - x0 * s, oy = (100 - h * s) / 2 - y0 * s;
+  var dpaths = [];
+  rings.forEach(function(r){
+    var r2 = rdpJS(r, 2.0);
+    if (r2.length < 4) return;
+    if (r2[0][0] === r2[r2.length - 1][0] && r2[0][1] === r2[r2.length - 1][1]) r2 = r2.slice(0, -1);
+    var r3 = chaikinJS(r2, 2);
+    dpaths.push("M" + r3.map(function(p){ return (Math.round((p[0] * s + ox) * 10) / 10) + " " + (Math.round((p[1] * s + oy) * 10) / 10); }).join(" L ") + " Z");
+  });
+  return dpaths;
+}
+
 /* ================= Adornos caligraficos (remates bajo el texto) ================= */
 var ADORNOS_BASE = [
   { nombre:"Flecha", grosor:3, trazos:[
@@ -255,20 +359,25 @@ function construir(){
   // bbox del texto
   var tb = textShapes.length ? shapesBBox(textShapes) : new THREE.Box2(new THREE.Vector2(-1,-1), new THREE.Vector2(1,1));
 
-  // --- motivo arriba del texto ---
+  // --- motivo (arriba o abajo, tamaño ajustable) ---
   var motShapes = [];
+  var topStack = tb.max.y, botStack = tb.min.y; // pilas para apilar motivo/adorno
   if (MOTIVO_SEL){
     var raw = motivoShapes(MOTIVO_SEL);
     var mb = shapesBBox(raw);
     var mw = Math.max(mb.max.x - mb.min.x, 1), mh = Math.max(mb.max.y - mb.min.y, 1);
-    var target = Math.max(maxW * 0.45, SIZE * 1.2);
+    var pctM = Math.max(30, Math.min(300, Number(($("#motTam") || {}).value) || 100)) / 100;
+    var target = Math.max(maxW * 0.45, SIZE * 1.2) * pctM;
     var k = target / mw;
     var mcx = (mb.min.x + mb.max.x) / 2;
-    var topY = tb.max.y + mh * k * 0.5 + SIZE * 0.45; // centro del motivo sobre el texto (y-arriba)
+    var motArriba = !document.getElementById("motPos") || $("#motPos").value !== "abajo";
+    var gapM = SIZE * 0.45, cyM;
+    if (motArriba){ cyM = topStack + mh * k * 0.5 + gapM; topStack += mh * k + gapM; }
+    else { cyM = botStack - mh * k * 0.5 - gapM; botStack -= mh * k + gapM; }
     raw.forEach(function(s){
       motShapes.push(bakeShape(s,
         function(x){ return (x - mcx) * k; },
-        function(y){ return (y - (mb.min.y + mb.max.y) / 2) * -k + topY; } // flip svg
+        function(y){ return (y - (mb.min.y + mb.max.y) / 2) * -k + cyM; } // flip svg
       ));
     });
   }
@@ -281,14 +390,19 @@ function construir(){
     if (rawA.length){
       var abb = shapesBBox(rawA);
       var aw2 = Math.max(abb.max.x - abb.min.x, 1), ah2 = Math.max(abb.max.y - abb.min.y, 1);
+      var pctA = Math.max(30, Math.min(300, Number(($("#adTam") || {}).value) || 100)) / 100;
       var ka = Math.max(maxW * 0.38, SIZE * 1.1) / aw2;
       if (ah2 * ka > SIZE * 1.05) ka = SIZE * 1.05 / ah2; // que no domine el diseño
+      ka *= pctA;
       var acx2 = (abb.min.x + abb.max.x) / 2;
-      var botY = tb.min.y - ah2 * ka * 0.5 - SIZE * 0.18;
+      var adAbajo = !document.getElementById("adPos") || $("#adPos").value !== "arriba";
+      var gapA = SIZE * 0.18, cyA;
+      if (adAbajo){ cyA = botStack - ah2 * ka * 0.5 - gapA; botStack -= ah2 * ka + gapA; }
+      else { cyA = topStack + ah2 * ka * 0.5 + gapA; topStack += ah2 * ka + gapA; }
       rawA.forEach(function(s){
         adShapes.push(bakeShape(s,
           function(x){ return (x - acx2) * ka; },
-          function(y){ return (y - (abb.min.y + abb.max.y) / 2) * -ka + botY; }
+          function(y){ return (y - (abb.min.y + abb.max.y) / 2) * -ka + cyA; }
         ));
       });
     }
@@ -344,14 +458,13 @@ function construir(){
       var hw2 = Math.min(lineInfo[i].hw, lineInfo[i + 1].hw) * 0.55;
       [-hw2, hw2].forEach(function(px){ bars.push(barra(px - 1.3, lineInfo[i + 1].base, px + 1.3, lineInfo[i].base)); });
     }
-    if (motMm.length && textMm.length){
-      var mb3 = shapesBBox(motMm);
-      bars.push(barra(-1.2, (tb.max.y - ccy) * esc - 2, 1.2, (mb3.min.y + mb3.max.y) / 2));
-    }
-    if (adMm.length && textMm.length){
-      var ab3 = shapesBBox(adMm);
-      bars.push(barra(-1.2, (ab3.min.y + ab3.max.y) / 2, 1.2, (tb.min.y - ccy) * esc + 2));
-    }
+    var tTop = (tb.max.y - ccy) * esc, tBot = (tb.min.y - ccy) * esc;
+    [motMm, adMm].forEach(function(arr){
+      if (!arr.length || !textMm.length) return;
+      var eb = shapesBBox(arr), ec = (eb.min.y + eb.max.y) / 2;
+      if (ec > tTop) bars.push(barra(-1.2, tTop - 2, 1.2, ec));
+      else bars.push(barra(-1.2, ec, 1.2, tBot + 2));
+    });
     return bars;
   }
 
@@ -389,7 +502,10 @@ function construir(){
     if ($("#palitos").checked && lineInfo.length){
       var plL = Number($("#palLen").value) || 45;
       var last = lineInfo[lineInfo.length - 1];
-      var topP = adMm.length ? (shapesBBox(adMm).min.y + 2) : (last.base + 1);
+      var topP = last.base + 1;
+      [motMm, adMm].forEach(function(arr){
+        if (arr.length){ var eb2 = shapesBBox(arr); if (eb2.min.y < topP - 3) topP = eb2.min.y + 2; }
+      });
       var pxs = last.hw > 16 ? [-last.hw * 0.5, last.hw * 0.5] : [0];
       pxs.forEach(function(px){ rings2.push(palito(px, topP, plL).extractPoints(1).shape); });
     }
@@ -511,7 +627,7 @@ function refrescar(){
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(refrescar, 350); }
-["l1","l2","l3","fuente","placa","estiloMot","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
+["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
@@ -557,8 +673,31 @@ function pintarMotivos(){
 $("#btnIA").onclick = async function(){
   var motivo = $("#motivoTxt").value.trim();
   if (motivo.length < 3) return msgEl("iaMsg", "Describe el motivo primero.", true);
-  var btn = $("#btnIA"); btn.disabled = true; msgEl("iaMsg", "🪄 Diseñando con IA… (10-20 s)");
+  var btn = $("#btnIA"); btn.disabled = true;
   try {
+    // 1) intento premium: imagen Flux -> vectorizado en el navegador
+    msgEl("iaMsg", "🪄 Generando con IA de imágenes… (15-30 s)");
+    var r1 = await fetch(C.SUPABASE_URL + "/functions/v1/topper-imagen", {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ motivo: motivo }),
+    });
+    var j1 = await r1.json().catch(function(){ return {}; });
+    if (j1.imagenes && j1.imagenes.length){
+      var nuevos = [];
+      for (var i = 0; i < j1.imagenes.length; i++){
+        var img = new Image();
+        await new Promise(function(res, rej){ img.onload = res; img.onerror = rej; img.src = "data:image/jpeg;base64," + j1.imagenes[i]; });
+        var paths = trazarImagen(img);
+        if (paths.length) nuevos.push({ nombre: "IA · " + motivo.slice(0, 18) + " " + (i + 1), paths: paths });
+      }
+      if (nuevos.length){
+        MOTIVOS_IA = nuevos; MOTIVO_SEL = nuevos[0];
+        pintarMotivos(); programarRefresco();
+        return msgEl("iaMsg", "✅ " + nuevos.length + " motivos profesionales generados — toca para elegir.");
+      }
+    }
+    // 2) fallback: Claude dibuja los paths
+    msgEl("iaMsg", "🪄 Diseñando con IA… (10-20 s)");
     var r = await fetch(C.SUPABASE_URL + "/functions/v1/topper-ia", {
       method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY },
       body: JSON.stringify({ motivo: motivo }),
