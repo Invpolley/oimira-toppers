@@ -4,64 +4,7 @@ var $ = function(s){ return document.querySelector(s); };
 document.getElementById("ver").textContent = C.APP_VERSION;
 
 /* ================= Biblioteca de motivos (siempre imprimen bien) ================= */
-var BIBLIOTECA = (function(){
-  function n1(v){ return Math.round(v*10)/10; }
-  function poly(pts){
-    var a = 0; // orientacion consistente: giro positivo (como los circulos)
-    for (var i = 0; i < pts.length; i++){ var p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }
-    if (a < 0) pts = pts.slice().reverse();
-    return "M"+pts.map(function(p){return n1(p[0])+" "+n1(p[1]);}).join(" L ")+" Z";
-  }
-  function ell(cx,cy,rx,ry){ var kx=n1(rx*.5523),ky=n1(ry*.5523);
-    return "M"+n1(cx-rx)+" "+n1(cy)+" C"+n1(cx-rx)+" "+n1(cy-ky)+" "+n1(cx-kx)+" "+n1(cy-ry)+" "+n1(cx)+" "+n1(cy-ry)+" C"+n1(cx+kx)+" "+n1(cy-ry)+" "+n1(cx+rx)+" "+n1(cy-ky)+" "+n1(cx+rx)+" "+n1(cy)+" C"+n1(cx+rx)+" "+n1(cy+ky)+" "+n1(cx+kx)+" "+n1(cy+ry)+" "+n1(cx)+" "+n1(cy+ry)+" C"+n1(cx-kx)+" "+n1(cy+ry)+" "+n1(cx-rx)+" "+n1(cy+ky)+" "+n1(cx-rx)+" "+n1(cy)+" Z"; }
-  function circ(cx,cy,r){ return ell(cx,cy,r,r); }
-  function hueco(cx,cy,r){ var k=n1(r*.5523);
-    return "M"+n1(cx-r)+" "+n1(cy)+" C"+n1(cx-r)+" "+n1(cy+k)+" "+n1(cx-k)+" "+n1(cy+r)+" "+n1(cx)+" "+n1(cy+r)+" C"+n1(cx+k)+" "+n1(cy+r)+" "+n1(cx+r)+" "+n1(cy+k)+" "+n1(cx+r)+" "+n1(cy)+" C"+n1(cx+r)+" "+n1(cy-k)+" "+n1(cx+k)+" "+n1(cy-r)+" "+n1(cx)+" "+n1(cy-r)+" C"+n1(cx-k)+" "+n1(cy-r)+" "+n1(cx-r)+" "+n1(cy-k)+" "+n1(cx-r)+" "+n1(cy)+" Z"; }
-  function rc(x,y,w,h){ return poly([[x,y],[x+w,y],[x+w,y+h],[x,y+h]]); }
-  function star(cx,cy,R,r){ var pts=[]; for(var i=0;i<10;i++){ var a=-Math.PI/2+i*Math.PI/5, rad=i%2?r:R; pts.push([cx+Math.cos(a)*rad, cy+Math.sin(a)*rad]); } return poly(pts); }
-  function heart(cx,cy,s){ function X(v){return n1(cx+v*s);} function Y(v){return n1(cy+v*s);}
-    return "M"+X(0)+" "+Y(33)+" C"+X(-8)+" "+Y(22)+" "+X(-35)+" "+Y(7)+" "+X(-35)+" "+Y(-11)+" C"+X(-35)+" "+Y(-27)+" "+X(-17)+" "+Y(-32)+" "+X(-7)+" "+Y(-23)+" C"+X(-3)+" "+Y(-19)+" "+X(0)+" "+Y(-13)+" "+X(0)+" "+Y(-13)+" C"+X(0)+" "+Y(-13)+" "+X(3)+" "+Y(-19)+" "+X(7)+" "+Y(-23)+" C"+X(17)+" "+Y(-32)+" "+X(35)+" "+Y(-27)+" "+X(35)+" "+Y(-11)+" C"+X(35)+" "+Y(7)+" "+X(8)+" "+Y(22)+" "+X(0)+" "+Y(33)+" Z"; }
-  function lazo(cx,cy,s){ return [poly([[cx-13*s,cy-7*s],[cx-2*s,cy],[cx-13*s,cy+7*s]]), poly([[cx+13*s,cy-7*s],[cx+2*s,cy],[cx+13*s,cy+7*s]]), circ(cx,cy,3.4*s)]; }
-  var oso = [circ(50,28,13), circ(40,17,6), circ(60,17,6), circ(50,60,18), ell(31,54,7,10), ell(69,54,7,10), circ(40,77,6.5), circ(60,77,6.5)];
-  var osoDet = [circ(45,25,2), circ(55,25,2), ell(50,31.5,4.5,3.2), circ(40,17,2.4), circ(60,17,2.4)];
-  function copo(){ var ds=[circ(50,50,8)];
-    for(var i=0;i<6;i++){ var a=i*Math.PI/3, ca=Math.cos(a), sa=Math.sin(a);
-      var pt=function(x,y){ return [50+x*ca-y*sa, 50+x*sa+y*ca]; };
-      ds.push(poly([pt(-3,0),pt(3,0),pt(3,-38),pt(-3,-38)]));
-      ds.push(poly([pt(0,-24),pt(11,-33),pt(8,-38),pt(0,-30)]));
-      ds.push(poly([pt(0,-24),pt(-11,-33),pt(-8,-38),pt(0,-30)]));
-      var tp=pt(0,-38); ds.push(circ(tp[0],tp[1],4.5)); }
-    return ds; }
-  var interr = ["M28 28 C28 8 72 8 72 28 C72 42 60 46 56 52 L56 62 L45 62 L45 48 C45 40 56 38 58 30 C59 22 41 22 41 29 L41 32 L28 32 Z", circ(50,74,7)];
-  return [
-    { nombre:"Osito ♂", tema:"Baby Shower", paths: oso.concat(lazo(50,42,1.3)), detalles: osoDet },
-    { nombre:"Osita ♀", tema:"Baby Shower", paths: oso.concat(lazo(40,8,0.9)), detalles: osoDet },
-    { nombre:"Cruz ♂", tema:"Bautizo", paths: ["M42 10 L58 10 L58 32 L80 32 L80 48 L58 48 L58 90 L42 90 L42 48 L20 48 L20 32 L42 32 Z"], detalles: ["M46 18 L54 18 L54 38 L72 38 L72 44 L54 44 L54 82 L46 82 L46 44 L28 44 L28 38 L46 38 Z"] },
-    { nombre:"Paloma ♀", tema:"Bautizo", paths: [ell(50,52,20,12), circ(67,40,8), poly([[74,37],[82,40],[74,43]]), poly([[40,46],[28,16],[56,42]]), poly([[34,54],[12,68],[18,50]])], detalles: [circ(68,38,2)] },
-    { nombre:"Biberón ♂", tema:"Nacimiento", paths: [ell(50,13,6,8), rc(40,19,20,9), rc(36,28,28,52), ell(50,80,14,6)], detalles: [rc(53,36,7,3), rc(53,46,7,3), rc(53,56,7,3)] },
-    { nombre:"Piecitos ♀", tema:"Nacimiento", paths: [ell(35,60,13,19), circ(28,40,4.5), circ(35,36.5,5), circ(42,40,5), ell(65,60,13,19), circ(72,40,4.5), circ(65,36.5,5), circ(58,40,5)] },
-    { nombre:"¿Niño? ♂", tema:"Revelación", paths: interr.concat(lazo(50,89,1)) },
-    { nombre:"¿Niña? ♀", tema:"Revelación", paths: interr.concat(lazo(50,8,1)) },
-    { nombre:"Corona ♂", tema:"Rey", paths: ["M12 70 L12 40 L30 52 L50 22 L70 52 L88 40 L88 70 Z","M12 74 L88 74 L88 84 L12 84 Z"], detalles: [circ(30,62,3.6), circ(50,58,4.2), circ(70,62,3.6)] },
-    { nombre:"Tiara ♀", tema:"15 Años", paths: ["M12 72 L20 44 L34 58 L50 30 L66 58 L80 44 L88 72 Z", rc(12,72,76,8), circ(20,40,4.5), circ(50,25,5.5), circ(80,40,4.5)], detalles: [circ(35,64,2.8), circ(50,60,3.6), circ(65,64,2.8)] },
-    { nombre:"Flecha ♂", tema:"San Valentín", paths: [heart(50,48,1), poly([[13.5,80],[89.5,24],[86.5,20],[10.5,76]]), poly([[94.4,17.3],[91.6,26.8],[84.4,17.2]]), poly([[12,78],[6,84],[9,87],[15,81]]), poly([[9,74],[3,80],[6,83],[12,77]])] },
-    { nombre:"Corazones ♀", tema:"San Valentín", paths: [heart(38,42,0.85), heart(66,62,0.55)], detalles: [heart(38,42,0.5)] },
-    { nombre:"Árbol", tema:"Navidad", paths: [poly([[50,8],[26,38],[74,38]]), poly([[50,22],[18,60],[82,60]]), poly([[50,42],[12,84],[88,84]]), rc(43,84,14,10), star(50,10,9,4)], detalles: [circ(46,32,3), circ(57,50,3.4), circ(40,54,3), circ(50,70,3.4), circ(64,74,3), circ(35,76,3)] },
-    { nombre:"Copo", tema:"Navidad", paths: copo() },
-    { nombre:"Torta", tema:"Cumpleaños", paths: ["M20 50 L80 50 L80 85 L20 85 Z M15 46 L85 46 L85 54 L15 54 Z","M47 20 L53 20 L53 36 L47 36 Z M44 36 L56 36 L56 46 L44 46 Z"], detalles: [rc(24,60,52,4), circ(35,74,3), circ(50,74,3), circ(65,74,3)] },
-    { nombre:"Globos", tema:"Cumpleaños", paths: ["M35 12 C20 12 12 24 12 35 C12 48 24 58 35 58 C46 58 58 48 58 35 C58 24 50 12 35 12 Z M33 58 L30 70 L40 70 L37 58 Z","M72 25 C62 25 56 33 56 41 C56 50 64 57 72 57 C80 57 88 50 88 41 C88 33 82 25 72 25 Z M70 57 L68 66 L76 66 L74 57 Z"], detalles: [ell(28,26,4,6), ell(66,34,3,4.5)] },
-    { nombre:"Birrete", tema:"Graduación", paths: [poly([[50,18],[92,34],[50,50],[8,34]]), rc(36,46,28,16), rc(84,34,4,26), circ(86,64,5)] },
-    { nombre:"Diploma", tema:"Graduación", paths: [circ(22,50,11), circ(78,50,11), rc(22,39,56,22), poly([[44,58],[50,74],[56,58]])], detalles: [rc(32,48,36,3)] },
-    { nombre:"Anillos", tema:"Boda", paths: [circ(38,55,17), hueco(38,55,10.5), circ(62,55,17), hueco(62,55,10.5), poly([[62,22],[70,30],[62,38],[54,30]])] },
-    { nombre:"Campana", tema:"Boda", paths: ["M38 22 C38 12 62 12 62 22 C62 36 66 44 70 50 L30 50 C34 44 38 36 38 22 Z", rc(28,50,44,7), circ(50,62,6)].concat(lazo(50,11,0.8)), detalles: [rc(36,41,28,3)] },
-    { nombre:"Cáliz", tema:"Comunión", paths: [circ(50,17,9), "M28 24 L72 24 C72 44 62 54 50 54 C38 54 28 44 28 24 Z", rc(46,54,8,18), rc(32,72,36,8)], detalles: [rc(48.4,11,3.2,12), rc(44,15.4,12,3.2)] },
-    { nombre:"Ángel", tema:"Comunión", paths: [circ(50,6,7), hueco(50,6,4), circ(50,20,10), poly([[50,28],[32,72],[68,72]]), ell(26,46,17,9), ell(74,46,17,9)], detalles: [circ(46.5,19,1.7), circ(53.5,19,1.7)] },
-    { nombre:"Corbata ♂", tema:"Día del Padre", paths: [poly([[40,12],[60,12],[55,28],[45,28]]), poly([[45,28],[55,28],[62,74],[50,88],[38,74]])], detalles: [poly([[45.5,40],[55,37],[56,41],[46.5,44]]), poly([[46.5,54],[56,51],[57,55],[47.5,58]])] },
-    { nombre:"Flor ♀", tema:"Día de la Madre", paths: ["M50 10 C60 10 64 22 57 29 C70 24 79 33 74 44 C69 54 56 51 52 42 L52 42 C56 51 47 60 37 56 C26 51 29 38 39 35 C29 32 28 19 38 14 C43 11 47 10 50 10 Z","M50 46 C55 46 59 50 59 55 C59 60 55 64 50 64 C45 64 41 60 41 55 C41 50 45 46 50 46 Z"], detalles: [circ(50,55,3.6)] },
-    { nombre:"Estrella", tema:"Genérico", paths: [star(50,50,42,17)], detalles: [star(50,50,26,10.5)] },
-    { nombre:"Mariposa", tema:"Genérico", paths: ["M48 45 C40 28 22 15 12 22 C2 30 12 48 28 52 C14 56 6 70 14 79 C24 88 42 72 48 58 Z","M52 45 C60 28 78 15 88 22 C98 30 88 48 72 52 C86 56 94 70 86 79 C76 88 58 72 52 58 Z","M46 40 L54 40 L54 78 L46 78 Z"], detalles: [ell(28,36,6,8), ell(72,36,6,8), circ(24,66,4), circ(76,66,4)] }
-  ];
-})();
+var BIBLIOTECA = window.MOTIVOS_TRAZADOS || [];
 
 /* ================= Estado ================= */
 var FUENTES = {}; // nombre -> opentype.Font
@@ -228,7 +171,9 @@ function motivoShapes(m){
     return treeToShapes(tree);
   }
   var det = (estilo === "detalles" && m.detalles && m.detalles.length) ? ringsDeSvg(m.detalles) : null;
-  return opRings(base, det, det ? ClipperLib.ClipType.ctDifference : ClipperLib.ClipType.ctUnion);
+  var out = opRings(base, det, det ? ClipperLib.ClipType.ctDifference : ClipperLib.ClipType.ctUnion);
+  if (estilo === "solido") out.forEach(function(s){ s.holes = []; }); // silueta maciza
+  return out;
 }
 function svgPathsToShapes(paths){
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
