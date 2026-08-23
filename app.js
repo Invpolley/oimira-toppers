@@ -348,9 +348,10 @@ function construir(){
     if (rawA.length){
       var abb = shapesBBox(rawA);
       var aw2 = Math.max(abb.max.x - abb.min.x, 1), ah2 = Math.max(abb.max.y - abb.min.y, 1);
-      var ka = Math.max(maxW * 0.55, SIZE * 1.3) / aw2;
+      var ka = Math.max(maxW * 0.38, SIZE * 1.1) / aw2;
+      if (ah2 * ka > SIZE * 1.05) ka = SIZE * 1.05 / ah2; // que no domine el diseño
       var acx2 = (abb.min.x + abb.max.x) / 2;
-      var botY = tb.min.y - ah2 * ka * 0.5 - SIZE * 0.3;
+      var botY = tb.min.y - ah2 * ka * 0.5 - SIZE * 0.18;
       rawA.forEach(function(s){
         adShapes.push(bakeShape(s,
           function(x){ return (x - acx2) * ka; },
@@ -412,11 +413,11 @@ function construir(){
     }
     if (motMm.length && textMm.length){
       var mb3 = shapesBBox(motMm);
-      bars.push(barra(-1.6, (tb.max.y - ccy) * esc - 2, 1.6, (mb3.min.y + mb3.max.y) / 2));
+      bars.push(barra(-1.2, (tb.max.y - ccy) * esc - 2, 1.2, (mb3.min.y + mb3.max.y) / 2));
     }
     if (adMm.length && textMm.length){
       var ab3 = shapesBBox(adMm);
-      bars.push(barra(-1.6, (ab3.min.y + ab3.max.y) / 2, 1.6, (tb.min.y - ccy) * esc + 2));
+      bars.push(barra(-1.2, (ab3.min.y + ab3.max.y) / 2, 1.2, (tb.min.y - ccy) * esc + 2));
     }
     return bars;
   }
