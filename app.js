@@ -92,8 +92,9 @@ function construir(){
   });
   lineas.forEach(function(t, i){
     var w = medidas[i];
-    var p = font.getPath(t, -w / 2, yCursor, SIZE);
-    otPathToShapes(p).forEach(function(s){ textShapes.push(s); });
+    // por GLIFO (no por linea): evita rellenos rotos en fuentes script con trazos superpuestos
+    var gps = font.getPaths(t, -w / 2, yCursor, SIZE);
+    gps.forEach(function(gp){ otPathToShapes(gp).forEach(function(s){ textShapes.push(s); }); });
     yCursor += LH;
   });
   // bbox del texto
