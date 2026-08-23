@@ -378,7 +378,7 @@ function construir(){
   } else if (forma === "letras"){
     esc = anchoMm / cw;
   } else if (forma === "aro"){
-    esc = Math.min(anchoMm * 0.76 / cw, anchoMm * 0.76 / Math.max(ch, 1));
+    esc = Math.min(anchoMm * 0.82 / cw, anchoMm * 0.72 / Math.max(ch, 1));
   }
   function T(shapes){
     return shapes.map(function(s){
