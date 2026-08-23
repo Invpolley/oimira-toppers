@@ -249,29 +249,18 @@ function shapesBBox(shapes){
 }
 
 /* ================= Adornos caligraficos (remates bajo el texto) ================= */
-var ADORNOS = {
-  remolino: { nombre:"Remolino", grosor:4, trazos:[
-    "M8 52 C24 34 40 62 56 46 C68 34 84 40 92 52",
-    "M8 52 C4 58 10 66 17 62 C22 59 20 52 14 53",
-    "M92 52 C96 46 90 38 83 42 C78 45 80 52 86 51"
-  ]},
-  corazon_inf: { nombre:"Corazon infinito", grosor:4, trazos:[
-    "M50 58 C28 42 32 20 45 24 C49 26 50 32 50 36 C50 32 51 26 55 24 C68 20 72 42 50 58",
-    "M50 66 C42 76 24 78 18 70 C12 62 22 54 32 60 C38 63 44 66 50 66 C56 66 62 63 68 60 C78 54 88 62 82 70 C76 78 58 76 50 66"
-  ]},
-  remolino_doble: { nombre:"Doble remolino", grosor:4, trazos:[
-    "M50 48 C38 34 20 36 12 46 C6 54 14 64 22 60 C28 57 26 48 19 49",
-    "M50 48 C62 34 80 36 88 46 C94 54 86 64 78 60 C72 57 74 48 81 49",
-    "M50 48 L50 60"
-  ]},
-  flecha: { nombre:"Flecha", grosor:3.6, trazos:[
+var ADORNOS_BASE = [
+  { nombre:"Flecha", grosor:3, trazos:[
     "M8 50 L92 50", "M78 40 L92 50 L78 60", "M20 40 L10 50 L20 60", "M28 42 L20 50 L28 58"
   ]},
-  laurel: { nombre:"Laurel", grosor:3.2, trazos:["M8 62 C30 44 70 44 92 62"],
+  { nombre:"Laurel", grosor:2.6, trazos:["M8 62 C30 44 70 44 92 62"],
     paths:["M15 50 L20 46 L25 50 L20 54 Z","M27 45 L32 41 L37 45 L32 49 Z","M39 42 L44 38 L49 42 L44 46 Z","M51 42 L56 38 L61 42 L56 46 Z","M63 45 L68 41 L73 45 L68 49 Z","M75 50 L80 46 L85 50 L80 54 Z"] },
-  puntos: { nombre:"Puntos y rombo", grosor:3, trazos:["M14 50 L86 50"],
+  { nombre:"Puntos y rombo", grosor:2.4, trazos:["M14 50 L86 50"],
     paths:["M42 50 L50 43 L58 50 L50 57 Z","M17 50 C17 48.3 18.3 47 20 47 C21.7 47 23 48.3 23 50 C23 51.7 21.7 53 20 53 C18.3 53 17 51.7 17 50 Z","M77 50 C77 48.3 78.3 47 80 47 C81.7 47 83 48.3 83 50 C83 51.7 81.7 53 80 53 C78.3 53 77 51.7 77 50 Z"] }
-};
+];
+var ADORNOS_LISTA = (window.ADORNOS_TRAZADOS || []).concat(ADORNOS_BASE);
+var ADORNO_SEL = null;
+
 // trazo abierto -> banda rellena (Clipper offset redondo sobre linea abierta)
 function trazosRings(paths, w){
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
@@ -341,8 +330,7 @@ function construir(){
 
   // --- adorno caligrafico debajo del texto ---
   var adShapes = [];
-  var adEl = document.getElementById("adorno");
-  var adSel = adEl && adEl.value ? ADORNOS[adEl.value] : null;
+  var adSel = ADORNO_SEL;
   if (adSel && textShapes.length){
     var rawA = adornoShapes(adSel);
     if (rawA.length){
@@ -578,13 +566,31 @@ function refrescar(){
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(refrescar, 350); }
-["l1","l2","l3","fuente","placa","estiloMot","adorno","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
+["l1","l2","l3","fuente","placa","estiloMot","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
 });
 
 /* ================= Motivos: biblioteca + IA ================= */
+function pintarAdornos(){
+  var g = document.getElementById("gridAdornos");
+  if (!g) return;
+  g.innerHTML = '<button class="mot' + (ADORNO_SEL === null ? " sel" : "") + '" data-i="-1" title="Sin adorno"><svg viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80" stroke="#ccc" stroke-width="6"/><line x1="80" y1="20" x2="20" y2="80" stroke="#ccc" stroke-width="6"/></svg><span>Ninguno</span></button>' +
+    ADORNOS_LISTA.map(function(a, i){
+      var sel = ADORNO_SEL === ADORNOS_LISTA[i];
+      var svg = (a.paths || []).map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("") +
+        (a.trazos || []).map(function(dd){ return '<path d="' + dd + '" fill="none" stroke="#9a3412" stroke-width="' + (a.grosor || 3) + '" stroke-linecap="round"/>'; }).join("");
+      return '<button class="mot' + (sel ? " sel" : "") + '" data-i="' + i + '" title="' + a.nombre + '"><svg viewBox="0 0 100 100">' + svg + '</svg><span>' + a.nombre + '</span></button>';
+    }).join("");
+  g.querySelectorAll(".mot").forEach(function(b){
+    b.onclick = function(){
+      var i = Number(b.dataset.i);
+      ADORNO_SEL = i < 0 ? null : ADORNOS_LISTA[i];
+      pintarAdornos(); programarRefresco();
+    };
+  });
+}
 function pintarMotivos(){
   var todos = MOTIVOS_IA.concat(BIBLIOTECA);
   $("#gridMotivos").innerHTML = '<button class="mot' + (MOTIVO_SEL === null ? " sel" : "") + '" data-i="-1" title="Sin motivo"><svg viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80" stroke="#ccc" stroke-width="6"/><line x1="80" y1="20" x2="20" y2="80" stroke="#ccc" stroke-width="6"/></svg><span>Ninguno</span></button>' +
@@ -714,7 +720,7 @@ $("#btnStl").onclick = async function(){
 
 /* ================= Arranque ================= */
 (async function init(){
-  tamCanvas(); loop(); pintarMotivos();
+  tamCanvas(); loop(); pintarMotivos(); pintarAdornos();
   try { await cargarFuente("greatvibes"); } catch (e) {}
   ["pacifico","poppins"].forEach(function(k){ cargarFuente(k).catch(function(){}); });
   $("#fuente").addEventListener("change", function(){ cargarFuente($("#fuente").value).then(programarRefresco); });
