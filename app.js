@@ -248,6 +248,51 @@ function shapesBBox(shapes){
   return box;
 }
 
+/* ================= Adornos caligraficos (remates bajo el texto) ================= */
+var ADORNOS = {
+  remolino: { nombre:"Remolino", grosor:4, trazos:[
+    "M8 52 C24 34 40 62 56 46 C68 34 84 40 92 52",
+    "M8 52 C4 58 10 66 17 62 C22 59 20 52 14 53",
+    "M92 52 C96 46 90 38 83 42 C78 45 80 52 86 51"
+  ]},
+  corazon_inf: { nombre:"Corazon infinito", grosor:4, trazos:[
+    "M50 58 C28 42 32 20 45 24 C49 26 50 32 50 36 C50 32 51 26 55 24 C68 20 72 42 50 58",
+    "M50 66 C42 76 24 78 18 70 C12 62 22 54 32 60 C38 63 44 66 50 66 C56 66 62 63 68 60 C78 54 88 62 82 70 C76 78 58 76 50 66"
+  ]},
+  remolino_doble: { nombre:"Doble remolino", grosor:4, trazos:[
+    "M50 48 C38 34 20 36 12 46 C6 54 14 64 22 60 C28 57 26 48 19 49",
+    "M50 48 C62 34 80 36 88 46 C94 54 86 64 78 60 C72 57 74 48 81 49",
+    "M50 48 L50 60"
+  ]},
+  flecha: { nombre:"Flecha", grosor:3.6, trazos:[
+    "M8 50 L92 50", "M78 40 L92 50 L78 60", "M20 40 L10 50 L20 60", "M28 42 L20 50 L28 58"
+  ]},
+  laurel: { nombre:"Laurel", grosor:3.2, trazos:["M8 62 C30 44 70 44 92 62"],
+    paths:["M15 50 L20 46 L25 50 L20 54 Z","M27 45 L32 41 L37 45 L32 49 Z","M39 42 L44 38 L49 42 L44 46 Z","M51 42 L56 38 L61 42 L56 46 Z","M63 45 L68 41 L73 45 L68 49 Z","M75 50 L80 46 L85 50 L80 54 Z"] },
+  puntos: { nombre:"Puntos y rombo", grosor:3, trazos:["M14 50 L86 50"],
+    paths:["M42 50 L50 43 L58 50 L50 57 Z","M17 50 C17 48.3 18.3 47 20 47 C21.7 47 23 48.3 23 50 C23 51.7 21.7 53 20 53 C18.3 53 17 51.7 17 50 Z","M77 50 C77 48.3 78.3 47 80 47 C81.7 47 83 48.3 83 50 C83 51.7 81.7 53 80 53 C78.3 53 77 51.7 77 50 Z"] }
+};
+// trazo abierto -> banda rellena (Clipper offset redondo sobre linea abierta)
+function trazosRings(paths, w){
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
+    paths.map(function(dd){ return '<path d="' + dd + '"/>'; }).join("") + "</svg>";
+  var data = new THREE.SVGLoader().parse(svg);
+  var polys = [];
+  data.paths.forEach(function(p){
+    p.subPaths.forEach(function(sp){ var r = sp.getPoints(28); if (r.length > 1) polys.push(r); });
+  });
+  var co = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+  co.AddPaths(toClip(polys), ClipperLib.JoinType.jtRound, ClipperLib.EndType.etOpenRound);
+  var sol = new ClipperLib.Paths();
+  co.Execute(sol, (w / 2) * CLIP_ESC);
+  return sol.map(function(p){ return p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }); });
+}
+function adornoShapes(a){
+  var rings = (a.paths && a.paths.length) ? ringsDeSvg(a.paths) : [];
+  if (a.trazos && a.trazos.length) rings = rings.concat(trazosRings(a.trazos, a.grosor || 4));
+  return unionRings(rings);
+}
+
 /* ================= Construcción del diseño (unidades mm) ================= */
 function construir(){
   var font = FUENTES[$("#fuente").value];
@@ -294,8 +339,29 @@ function construir(){
     });
   }
 
+  // --- adorno caligrafico debajo del texto ---
+  var adShapes = [];
+  var adEl = document.getElementById("adorno");
+  var adSel = adEl && adEl.value ? ADORNOS[adEl.value] : null;
+  if (adSel && textShapes.length){
+    var rawA = adornoShapes(adSel);
+    if (rawA.length){
+      var abb = shapesBBox(rawA);
+      var aw2 = Math.max(abb.max.x - abb.min.x, 1), ah2 = Math.max(abb.max.y - abb.min.y, 1);
+      var ka = Math.max(maxW * 0.55, SIZE * 1.3) / aw2;
+      var acx2 = (abb.min.x + abb.max.x) / 2;
+      var botY = tb.min.y - ah2 * ka * 0.5 - SIZE * 0.3;
+      rawA.forEach(function(s){
+        adShapes.push(bakeShape(s,
+          function(x){ return (x - acx2) * ka; },
+          function(y){ return (y - (abb.min.y + abb.max.y) / 2) * -ka + botY; }
+        ));
+      });
+    }
+  }
+
   // --- bbox contenido total ---
-  var all = textShapes.concat(motShapes);
+  var all = textShapes.concat(motShapes).concat(adShapes);
   var cb = shapesBBox(all);
   var cw = cb.max.x - cb.min.x, ch = cb.max.y - cb.min.y;
   var ccx = (cb.min.x + cb.max.x) / 2, ccy = (cb.min.y + cb.max.y) / 2;
@@ -303,25 +369,63 @@ function construir(){
   // --- escala global para que la placa mida anchoMm ---
   var padX = cw * 0.14 + SIZE * 0.25, padY = ch * 0.14 + SIZE * 0.25;
   var plateW = cw + padX * 2, plateH = ch + padY * 2;
+  var forma = $("#placa").value;
   var esc = anchoMm / plateW;
-  if ($("#placa").value === "contorno"){
+  if (forma === "contorno"){
     var mg0 = Math.max(3, anchoMm * 0.032);
     esc = (anchoMm - 2 * mg0) / cw; // el contorno agrega el margen: asi el ancho final = pedido
+  } else if (forma === "letras"){
+    esc = anchoMm / cw;
+  } else if (forma === "aro"){
+    esc = Math.min(anchoMm * 0.76 / cw, anchoMm * 0.76 / Math.max(ch, 1));
   }
   function T(shapes){
     return shapes.map(function(s){
       return bakeShape(s, function(x){ return (x - ccx) * esc; }, function(y){ return (y - ccy) * esc; }); // ya esta en y-arriba
     });
   }
-  var textMm = T(textShapes), motMm = T(motShapes);
+  var textMm = T(textShapes), motMm = T(motShapes), adMm = T(adShapes);
   var plateWmm = plateW * esc, plateHmm = plateH * esc;
 
+  // barras conectoras (estilo acrilico / aro)
+  var lineInfo = lineas.map(function(t, i){
+    return { base: (-i * LH - ccy) * esc, hw: medidas[i] / 2 * esc };
+  });
+  function barra(x1, y1, x2, y2){
+    var s = new THREE.Shape();
+    s.moveTo(x1, y1); s.lineTo(x2, y1); s.lineTo(x2, y2); s.lineTo(x1, y2); s.closePath();
+    return s;
+  }
+  function palito(px, topY, pl){
+    var pw2 = 6, st = new THREE.Shape();
+    st.moveTo(px - pw2 / 2, topY); st.lineTo(px + pw2 / 2, topY);
+    st.lineTo(px + pw2 / 2, topY - pl + 4); st.lineTo(px, topY - pl);
+    st.lineTo(px - pw2 / 2, topY - pl + 4); st.closePath();
+    return st;
+  }
+  function barrasConectoras(){
+    var bars = [];
+    lineInfo.forEach(function(li){ bars.push(barra(-li.hw * 0.96, li.base - 1.5, li.hw * 0.96, li.base + 1.1)); });
+    for (var i = 0; i + 1 < lineInfo.length; i++){
+      var hw2 = Math.min(lineInfo[i].hw, lineInfo[i + 1].hw) * 0.55;
+      [-hw2, hw2].forEach(function(px){ bars.push(barra(px - 1.3, lineInfo[i + 1].base, px + 1.3, lineInfo[i].base)); });
+    }
+    if (motMm.length && textMm.length){
+      var mb3 = shapesBBox(motMm);
+      bars.push(barra(-1.6, (tb.max.y - ccy) * esc - 2, 1.6, (mb3.min.y + mb3.max.y) / 2));
+    }
+    if (adMm.length && textMm.length){
+      var ab3 = shapesBBox(adMm);
+      bars.push(barra(-1.6, (ab3.min.y + ab3.max.y) / 2, 1.6, (tb.min.y - ccy) * esc + 2));
+    }
+    return bars;
+  }
+
   // --- placa ---
-  var forma = $("#placa").value;
   var plateShapes;
   if (forma === "contorno"){
     var margen = Math.max(3, anchoMm * 0.032);
-    plateShapes = contornoShapes(textMm.concat(motMm), margen) || [];
+    plateShapes = contornoShapes(textMm.concat(motMm).concat(adMm), margen) || [];
     if (!plateShapes.length) forma = "ovalo";
     else {
       var cbb = shapesBBox(plateShapes);
@@ -343,7 +447,56 @@ function construir(){
       }
     }
   }
-  if (forma !== "contorno"){
+  if (forma === "letras"){
+    // estilo acrilico: todo el diseño fusionado, sin placa de fondo
+    var rings2 = [];
+    textMm.concat(motMm).concat(adMm).forEach(function(s){ var p = s.extractPoints(10).shape; if (p.length > 2) rings2.push(p); });
+    barrasConectoras().forEach(function(s){ rings2.push(s.extractPoints(1).shape); });
+    if ($("#palitos").checked && lineInfo.length){
+      var plL = Number($("#palLen").value) || 45;
+      var last = lineInfo[lineInfo.length - 1];
+      var topP = adMm.length ? (shapesBBox(adMm).min.y + 2) : (last.base + 1);
+      var pxs = last.hw > 16 ? [-last.hw * 0.5, last.hw * 0.5] : [0];
+      pxs.forEach(function(px){ rings2.push(palito(px, topP, plL).extractPoints(1).shape); });
+    }
+    var c3 = new ClipperLib.Clipper();
+    c3.AddPaths(toClip(rings2), ClipperLib.PolyType.ptSubject, true);
+    var U2 = new ClipperLib.Paths();
+    c3.Execute(ClipperLib.ClipType.ctUnion, U2, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+    var co2 = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    co2.AddPaths(U2, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    var sol2 = new ClipperLib.Paths();
+    co2.Execute(sol2, 1.2 * CLIP_ESC); // borde de 1.2mm alrededor de las letras
+    sol2 = ClipperLib.Clipper.CleanPolygons(sol2.filter(function(p){ return ClipperLib.Clipper.Area(p) > 0 && p.length > 2; }), 0.1 * CLIP_ESC);
+    plateShapes = sol2.map(function(p){
+      return new THREE.Shape(p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }));
+    });
+    var bb4 = shapesBBox(plateShapes);
+    plateWmm = bb4.max.x - bb4.min.x; plateHmm = bb4.max.y - bb4.min.y;
+  }
+  else if (forma === "aro"){
+    var R = anchoMm / 2, ringW = Math.max(3.2, anchoMm * 0.028);
+    var ringS = new THREE.Shape();
+    ringS.absellipse(0, 0, R, R, 0, Math.PI * 2, false, 0);
+    var holeA = new THREE.Path();
+    holeA.absellipse(0, 0, R - ringW, R - ringW, 0, Math.PI * 2, true, 0);
+    ringS.holes.push(holeA);
+    plateShapes = [ringS];
+    lineInfo.forEach(function(li){
+      var half = Math.sqrt(Math.max(0, (R - 1) * (R - 1) - li.base * li.base));
+      plateShapes.push(barra(-half, li.base - 1.5, half, li.base + 1.1));
+    });
+    barrasConectoras().forEach(function(b){ plateShapes.push(b); });
+    if ($("#palitos").checked){
+      var plA = Number($("#palLen").value) || 45;
+      [-R * 0.35, R * 0.35].forEach(function(px){
+        var top = -Math.sqrt(Math.max(0, R * R - px * px)) + 7;
+        plateShapes.push(palito(px, top, plA));
+      });
+    }
+    plateWmm = 2 * R; plateHmm = 2 * R;
+  }
+  else if (forma === "ovalo" || forma === "rect"){
   var plate = new THREE.Shape();
   if (forma === "ovalo"){
     plate.absellipse(0, 0, plateWmm / 2, plateHmm / 2 * 1.06, 0, Math.PI * 2, false, 0);
@@ -379,9 +532,11 @@ function construir(){
     var g = new THREE.ExtrudeGeometry(shapes, { depth: depth, bevelEnabled: false, curveSegments: 18 });
     return g;
   }
+  var fullDepth = (forma === "aro" || forma === "letras");
+  var dRel = fullDepth ? grosor + relieve : relieve;
   var gPlaca = extr(plateShapes, grosor);
-  var gTexto = extr(textMm, relieve); if (gTexto) gTexto.translate(0, 0, grosor);
-  var gMot = extr(motMm, relieve); if (gMot) gMot.translate(0, 0, grosor);
+  var gTexto = extr(textMm, dRel); if (gTexto && !fullDepth) gTexto.translate(0, 0, grosor);
+  var gMot = extr(motMm.concat(adMm), dRel); if (gMot && !fullDepth) gMot.translate(0, 0, grosor);
   return { placa: gPlaca, texto: gTexto, motivo: gMot, anchoMm: anchoMm, altoMm: plateHmm };
 }
 
@@ -422,7 +577,7 @@ function refrescar(){
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(refrescar, 350); }
-["l1","l2","l3","fuente","placa","estiloMot","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
+["l1","l2","l3","fuente","placa","estiloMot","adorno","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
