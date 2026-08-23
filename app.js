@@ -4,16 +4,58 @@ var $ = function(s){ return document.querySelector(s); };
 document.getElementById("ver").textContent = C.APP_VERSION;
 
 /* ================= Biblioteca de motivos (siempre imprimen bien) ================= */
-var BIBLIOTECA = [
-  { nombre:"Corazón", paths:["M50 82 L20 52 C8 40 8 22 22 16 C34 11 44 18 50 28 C56 18 66 11 78 16 C92 22 92 40 80 52 Z"] },
-  { nombre:"Estrella", paths:["M50 8 L61 38 L93 38 L67 57 L77 88 L50 69 L23 88 L33 57 L7 38 L39 38 Z"] },
-  { nombre:"Globos", paths:["M35 12 C20 12 12 24 12 35 C12 48 24 58 35 58 C46 58 58 48 58 35 C58 24 50 12 35 12 Z M33 58 L30 70 L40 70 L37 58 Z","M72 25 C62 25 56 33 56 41 C56 50 64 57 72 57 C80 57 88 50 88 41 C88 33 82 25 72 25 Z M70 57 L68 66 L76 66 L74 57 Z"] },
-  { nombre:"Corona", paths:["M12 70 L12 40 L30 52 L50 22 L70 52 L88 40 L88 70 Z M12 74 L88 74 L88 84 L12 84 Z"] },
-  { nombre:"Flor", paths:["M50 10 C60 10 64 22 57 29 C70 24 79 33 74 44 C69 54 56 51 52 42 L52 42 C56 51 47 60 37 56 C26 51 29 38 39 35 C29 32 28 19 38 14 C43 11 47 10 50 10 Z","M50 46 C55 46 59 50 59 55 C59 60 55 64 50 64 C45 64 41 60 41 55 C41 50 45 46 50 46 Z"] },
-  { nombre:"Mariposa", paths:["M48 45 C40 28 22 15 12 22 C2 30 12 48 28 52 C14 56 6 70 14 79 C24 88 42 72 48 58 Z","M52 45 C60 28 78 15 88 22 C98 30 88 48 72 52 C86 56 94 70 86 79 C76 88 58 72 52 58 Z","M46 40 L54 40 L54 78 L46 78 Z"] },
-  { nombre:"Torta", paths:["M20 50 L80 50 L80 85 L20 85 Z M15 46 L85 46 L85 54 L15 54 Z","M47 20 L53 20 L53 36 L47 36 Z M44 36 L56 36 L56 46 L44 46 Z"] },
-  { nombre:"Hojas", paths:["M50 15 C50 45 35 60 15 62 C20 40 32 22 50 15 Z","M50 15 C50 45 65 60 85 62 C80 40 68 22 50 15 Z","M47 15 L53 15 L53 85 L47 85 Z"] }
-];
+var BIBLIOTECA = (function(){
+  function n1(v){ return Math.round(v*10)/10; }
+  function poly(pts){ return "M"+pts.map(function(p){return n1(p[0])+" "+n1(p[1]);}).join(" L ")+" Z"; }
+  function ell(cx,cy,rx,ry){ var kx=n1(rx*.5523),ky=n1(ry*.5523);
+    return "M"+n1(cx-rx)+" "+n1(cy)+" C"+n1(cx-rx)+" "+n1(cy-ky)+" "+n1(cx-kx)+" "+n1(cy-ry)+" "+n1(cx)+" "+n1(cy-ry)+" C"+n1(cx+kx)+" "+n1(cy-ry)+" "+n1(cx+rx)+" "+n1(cy-ky)+" "+n1(cx+rx)+" "+n1(cy)+" C"+n1(cx+rx)+" "+n1(cy+ky)+" "+n1(cx+kx)+" "+n1(cy+ry)+" "+n1(cx)+" "+n1(cy+ry)+" C"+n1(cx-kx)+" "+n1(cy+ry)+" "+n1(cx-rx)+" "+n1(cy+ky)+" "+n1(cx-rx)+" "+n1(cy)+" Z"; }
+  function circ(cx,cy,r){ return ell(cx,cy,r,r); }
+  function hueco(cx,cy,r){ var k=n1(r*.5523);
+    return "M"+n1(cx-r)+" "+n1(cy)+" C"+n1(cx-r)+" "+n1(cy+k)+" "+n1(cx-k)+" "+n1(cy+r)+" "+n1(cx)+" "+n1(cy+r)+" C"+n1(cx+k)+" "+n1(cy+r)+" "+n1(cx+r)+" "+n1(cy+k)+" "+n1(cx+r)+" "+n1(cy)+" C"+n1(cx+r)+" "+n1(cy-k)+" "+n1(cx+k)+" "+n1(cy-r)+" "+n1(cx)+" "+n1(cy-r)+" C"+n1(cx-k)+" "+n1(cy-r)+" "+n1(cx-r)+" "+n1(cy-k)+" "+n1(cx-r)+" "+n1(cy)+" Z"; }
+  function rc(x,y,w,h){ return poly([[x,y],[x+w,y],[x+w,y+h],[x,y+h]]); }
+  function star(cx,cy,R,r){ var pts=[]; for(var i=0;i<10;i++){ var a=-Math.PI/2+i*Math.PI/5, rad=i%2?r:R; pts.push([cx+Math.cos(a)*rad, cy+Math.sin(a)*rad]); } return poly(pts); }
+  function heart(cx,cy,s){ function X(v){return n1(cx+v*s);} function Y(v){return n1(cy+v*s);}
+    return "M"+X(0)+" "+Y(33)+" C"+X(-8)+" "+Y(22)+" "+X(-35)+" "+Y(7)+" "+X(-35)+" "+Y(-11)+" C"+X(-35)+" "+Y(-27)+" "+X(-17)+" "+Y(-32)+" "+X(-7)+" "+Y(-23)+" C"+X(-3)+" "+Y(-19)+" "+X(0)+" "+Y(-13)+" "+X(0)+" "+Y(-13)+" C"+X(0)+" "+Y(-13)+" "+X(3)+" "+Y(-19)+" "+X(7)+" "+Y(-23)+" C"+X(17)+" "+Y(-32)+" "+X(35)+" "+Y(-27)+" "+X(35)+" "+Y(-11)+" C"+X(35)+" "+Y(7)+" "+X(8)+" "+Y(22)+" "+X(0)+" "+Y(33)+" Z"; }
+  function lazo(cx,cy,s){ return [poly([[cx-13*s,cy-7*s],[cx-2*s,cy],[cx-13*s,cy+7*s]]), poly([[cx+13*s,cy-7*s],[cx+2*s,cy],[cx+13*s,cy+7*s]]), circ(cx,cy,3.4*s)]; }
+  var oso = [circ(50,34,16), circ(36,20,8), circ(64,20,8), circ(50,66,18), circ(40,82,6), circ(60,82,6)];
+  function copo(){ var ds=[circ(50,50,8)];
+    for(var i=0;i<6;i++){ var a=i*Math.PI/3, ca=Math.cos(a), sa=Math.sin(a);
+      var pt=function(x,y){ return [50+x*ca-y*sa, 50+x*sa+y*ca]; };
+      ds.push(poly([pt(-3,0),pt(3,0),pt(3,-38),pt(-3,-38)]));
+      ds.push(poly([pt(0,-24),pt(11,-33),pt(8,-38),pt(0,-30)]));
+      ds.push(poly([pt(0,-24),pt(-11,-33),pt(-8,-38),pt(0,-30)]));
+      var tp=pt(0,-38); ds.push(circ(tp[0],tp[1],4.5)); }
+    return ds; }
+  var interr = ["M28 28 C28 8 72 8 72 28 C72 42 60 46 56 52 L56 62 L45 62 L45 48 C45 40 56 38 58 30 C59 22 41 22 41 29 L41 32 L28 32 Z", circ(50,74,7)];
+  return [
+    { nombre:"Osito ♂", tema:"Baby Shower", paths: oso.concat(lazo(50,52,1.5)) },
+    { nombre:"Osita ♀", tema:"Baby Shower", paths: oso.concat(lazo(36,10,0.9)) },
+    { nombre:"Cruz ♂", tema:"Bautizo", paths: ["M42 10 L58 10 L58 32 L80 32 L80 48 L58 48 L58 90 L42 90 L42 48 L20 48 L20 32 L42 32 Z"] },
+    { nombre:"Paloma ♀", tema:"Bautizo", paths: ["M18 52 C18 40 30 32 44 34 C48 24 60 18 72 22 L64 32 C76 32 84 40 86 50 C74 48 66 50 58 54 C64 60 66 68 62 76 L48 62 L28 74 L38 58 C26 58 18 56 18 52 Z"] },
+    { nombre:"Biberón ♂", tema:"Nacimiento", paths: [ell(50,13,6,8), rc(40,19,20,9), rc(36,28,28,52), ell(50,80,14,6)] },
+    { nombre:"Piecitos ♀", tema:"Nacimiento", paths: [ell(35,60,13,19), circ(28,40,4.5), circ(35,36.5,5), circ(42,40,5), ell(65,60,13,19), circ(72,40,4.5), circ(65,36.5,5), circ(58,40,5)] },
+    { nombre:"¿Niño? ♂", tema:"Revelación", paths: interr.concat(lazo(50,89,1)) },
+    { nombre:"¿Niña? ♀", tema:"Revelación", paths: interr.concat(lazo(50,8,1)) },
+    { nombre:"Corona ♂", tema:"Rey", paths: ["M12 70 L12 40 L30 52 L50 22 L70 52 L88 40 L88 70 Z","M12 74 L88 74 L88 84 L12 84 Z"] },
+    { nombre:"Tiara ♀", tema:"15 Años", paths: ["M12 72 L20 44 L34 58 L50 30 L66 58 L80 44 L88 72 Z", rc(12,72,76,8), circ(20,40,4.5), circ(50,25,5.5), circ(80,40,4.5)] },
+    { nombre:"Flecha ♂", tema:"San Valentín", paths: [heart(50,48,1), poly([[13.5,80],[89.5,24],[86.5,20],[10.5,76]]), poly([[94.4,17.3],[91.6,26.8],[84.4,17.2]]), poly([[12,78],[6,84],[9,87],[15,81]]), poly([[9,74],[3,80],[6,83],[12,77]])] },
+    { nombre:"Corazones ♀", tema:"San Valentín", paths: [heart(38,42,0.85), heart(66,62,0.55)] },
+    { nombre:"Árbol", tema:"Navidad", paths: [poly([[50,8],[26,38],[74,38]]), poly([[50,22],[18,60],[82,60]]), poly([[50,42],[12,84],[88,84]]), rc(43,84,14,10), star(50,10,9,4)] },
+    { nombre:"Copo", tema:"Navidad", paths: copo() },
+    { nombre:"Torta", tema:"Cumpleaños", paths: ["M20 50 L80 50 L80 85 L20 85 Z M15 46 L85 46 L85 54 L15 54 Z","M47 20 L53 20 L53 36 L47 36 Z M44 36 L56 36 L56 46 L44 46 Z"] },
+    { nombre:"Globos", tema:"Cumpleaños", paths: ["M35 12 C20 12 12 24 12 35 C12 48 24 58 35 58 C46 58 58 48 58 35 C58 24 50 12 35 12 Z M33 58 L30 70 L40 70 L37 58 Z","M72 25 C62 25 56 33 56 41 C56 50 64 57 72 57 C80 57 88 50 88 41 C88 33 82 25 72 25 Z M70 57 L68 66 L76 66 L74 57 Z"] },
+    { nombre:"Birrete", tema:"Graduación", paths: [poly([[50,18],[92,34],[50,50],[8,34]]), rc(36,46,28,16), rc(84,34,4,26), circ(86,64,5)] },
+    { nombre:"Diploma", tema:"Graduación", paths: [circ(22,50,11), circ(78,50,11), rc(22,39,56,22), poly([[44,58],[50,74],[56,58]])] },
+    { nombre:"Anillos", tema:"Boda", paths: [circ(38,55,17), hueco(38,55,10.5), circ(62,55,17), hueco(62,55,10.5), poly([[62,22],[70,30],[62,38],[54,30]])] },
+    { nombre:"Campana", tema:"Boda", paths: ["M38 22 C38 12 62 12 62 22 C62 36 66 44 70 50 L30 50 C34 44 38 36 38 22 Z", rc(28,50,44,7), circ(50,62,6)].concat(lazo(50,11,0.8)) },
+    { nombre:"Cáliz", tema:"Comunión", paths: [circ(50,17,9), "M28 24 L72 24 C72 44 62 54 50 54 C38 54 28 44 28 24 Z", rc(46,54,8,18), rc(32,72,36,8)] },
+    { nombre:"Ángel", tema:"Comunión", paths: [circ(50,6,7), hueco(50,6,4), circ(50,20,10), poly([[50,28],[32,72],[68,72]]), ell(26,46,17,9), ell(74,46,17,9)] },
+    { nombre:"Corbata ♂", tema:"Día del Padre", paths: [poly([[40,12],[60,12],[55,28],[45,28]]), poly([[45,28],[55,28],[62,74],[50,88],[38,74]])] },
+    { nombre:"Flor ♀", tema:"Día de la Madre", paths: ["M50 10 C60 10 64 22 57 29 C70 24 79 33 74 44 C69 54 56 51 52 42 L52 42 C56 51 47 60 37 56 C26 51 29 38 39 35 C29 32 28 19 38 14 C43 11 47 10 50 10 Z","M50 46 C55 46 59 50 59 55 C59 60 55 64 50 64 C45 64 41 60 41 55 C41 50 45 46 50 46 Z"] },
+    { nombre:"Estrella", tema:"Genérico", paths: [star(50,50,42,17)] },
+    { nombre:"Mariposa", tema:"Genérico", paths: ["M48 45 C40 28 22 15 12 22 C2 30 12 48 28 52 C14 56 6 70 14 79 C24 88 42 72 48 58 Z","M52 45 C60 28 78 15 88 22 C98 30 88 48 72 52 C86 56 94 70 86 79 C76 88 58 72 52 58 Z","M46 40 L54 40 L54 78 L46 78 Z"] }
+  ];
+})();
 
 /* ================= Estado ================= */
 var FUENTES = {}; // nombre -> opentype.Font
@@ -59,6 +101,48 @@ function unionRings(rings){
   }
   walk(tree);
   return shapes;
+}
+
+// Placa-contorno: silueta engordada del texto+motivo (offset redondeado, una sola isla)
+function contornoShapes(shapesMm, delta0){
+  var rings = [];
+  shapesMm.forEach(function(s){ var pts = s.extractPoints(12).shape; if (pts.length > 2) rings.push(pts); });
+  if (!rings.length) return null;
+  var subj = rings.map(function(r){ return r.map(function(p){ return { X: Math.round(p.x * CLIP_ESC), Y: Math.round(p.y * CLIP_ESC) }; }); });
+  var c = new ClipperLib.Clipper();
+  c.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
+  var tree = new ClipperLib.PolyTree();
+  c.Execute(ClipperLib.ClipType.ctUnion, tree, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  var outers = []; (tree.Childs() || []).forEach(function(n){ outers.push(n.Contour()); });
+  var delta = delta0, sol = null;
+  for (var t = 0; t < 8; t++){
+    var co = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    co.AddPaths(outers, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    sol = new ClipperLib.Paths();
+    co.Execute(sol, delta * CLIP_ESC);
+    sol = sol.filter(function(p){ return ClipperLib.Clipper.Area(p) > 0; }); // solidos (sin agujeros: placa maciza)
+    if (sol.length <= 1 || t === 7) break;
+    delta += 1.6; // engordar hasta unir todo en una pieza
+  }
+  sol = ClipperLib.Clipper.CleanPolygons(sol, 0.15 * CLIP_ESC);
+  return sol.filter(function(p){ return p.length > 2; }).map(function(p){
+    return new THREE.Shape(p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }));
+  });
+}
+// y inferior del contorno en una x dada (para anclar palitos)
+function fondoEnX(shapes, px){
+  var best = null;
+  shapes.forEach(function(s){
+    var pts = s.extractPoints(1).shape;
+    for (var i = 0; i < pts.length; i++){
+      var a = pts[i], b = pts[(i + 1) % pts.length];
+      if ((a.x - px) * (b.x - px) <= 0 && a.x !== b.x){
+        var y = a.y + (b.y - a.y) * (px - a.x) / (b.x - a.x);
+        if (best === null || y < best) best = y;
+      }
+    }
+  });
+  return best;
 }
 // opentype path -> THREE shapes (y invertida, contornos unidos con Clipper)
 function otPathToShapes(otPath){
@@ -163,8 +247,35 @@ function construir(){
   var plateWmm = plateW * esc, plateHmm = plateH * esc;
 
   // --- placa ---
+  var forma = $("#placa").value;
+  var plateShapes;
+  if (forma === "contorno"){
+    var margen = Math.max(3, anchoMm * 0.032);
+    plateShapes = contornoShapes(textMm.concat(motMm), margen) || [];
+    if (!plateShapes.length) forma = "ovalo";
+    else {
+      var cbb = shapesBBox(plateShapes);
+      plateWmm = cbb.max.x - cbb.min.x; plateHmm = cbb.max.y - cbb.min.y;
+      if ($("#palitos").checked){
+        var plc = Number($("#palLen").value) || 45, pwc = 6;
+        var xs = [];
+        plateShapes.forEach(function(s){ s.extractPoints(1).shape.forEach(function(p){ if (p.y < cbb.min.y + 9) xs.push(p.x); }); });
+        var xlo = Math.min.apply(null, xs), xhi = Math.max.apply(null, xs);
+        var posiciones = (xhi - xlo) < 26 ? [(xlo + xhi) / 2] : [xlo + (xhi - xlo) * 0.25, xlo + (xhi - xlo) * 0.75];
+        posiciones.forEach(function(px){
+          var fy = fondoEnX(plateShapes, px); if (fy === null) fy = cbb.min.y + 6;
+          var st = new THREE.Shape();
+          st.moveTo(px - pwc / 2, fy + 7); st.lineTo(px + pwc / 2, fy + 7);
+          st.lineTo(px + pwc / 2, fy - plc + 4); st.lineTo(px, fy - plc);
+          st.lineTo(px - pwc / 2, fy - plc + 4); st.closePath();
+          plateShapes.push(st);
+        });
+      }
+    }
+  }
+  if (forma !== "contorno"){
   var plate = new THREE.Shape();
-  if ($("#placa").value === "ovalo"){
+  if (forma === "ovalo"){
     plate.absellipse(0, 0, plateWmm / 2, plateHmm / 2 * 1.06, 0, Math.PI * 2, false, 0);
   } else {
     var r = Math.min(10, plateHmm * 0.2), hw = plateWmm / 2, hh = plateHmm / 2;
@@ -174,11 +285,11 @@ function construir(){
     plate.lineTo(-hw + r, hh); plate.absarc(-hw + r, hh - r, r, Math.PI / 2, Math.PI, false);
     plate.lineTo(-hw, -hh + r); plate.absarc(-hw + r, -hh + r, r, Math.PI, Math.PI * 1.5, false);
   }
-  var plateShapes = [plate];
+  plateShapes = [plate];
   // palitos
   if ($("#palitos").checked){
     var pl = Number($("#palLen").value) || 45, pw = 6;
-    var yBottom = -plateHmm / 2 * ($("#placa").value === "ovalo" ? 0.75 : 0.98);
+    var yBottom = -plateHmm / 2 * (forma === "ovalo" ? 0.75 : 0.98);
     [-plateWmm * 0.26, plateWmm * 0.26].forEach(function(px){
       var st = new THREE.Shape();
       st.moveTo(px - pw / 2, yBottom + 6);
@@ -189,6 +300,7 @@ function construir(){
       st.closePath();
       plateShapes.push(st);
     });
+  }
   }
 
   // --- extrusiones ---
@@ -249,20 +361,21 @@ function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeou
 /* ================= Motivos: biblioteca + IA ================= */
 function pintarMotivos(){
   var todos = MOTIVOS_IA.concat(BIBLIOTECA);
-  $("#gridMotivos").innerHTML = '<button class="mot' + (MOTIVO_SEL === null ? " sel" : "") + '" data-i="-1" title="Sin motivo"><svg viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80" stroke="#ccc" stroke-width="6"/><line x1="80" y1="20" x2="20" y2="80" stroke="#ccc" stroke-width="6"/></svg></button>' +
+  $("#gridMotivos").innerHTML = '<button class="mot' + (MOTIVO_SEL === null ? " sel" : "") + '" data-i="-1" title="Sin motivo"><svg viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80" stroke="#ccc" stroke-width="6"/><line x1="80" y1="20" x2="20" y2="80" stroke="#ccc" stroke-width="6"/></svg><span>Ninguno</span></button>' +
     todos.map(function(m, i){
-      var sel = MOTIVO_SEL && MOTIVO_SEL.nombre === m.nombre && MOTIVO_SEL === todos[i];
-      return '<button class="mot' + (sel ? " sel" : "") + '" data-i="' + i + '" title="' + m.nombre + '"><svg viewBox="0 0 100 100">' +
-        m.paths.map(function(d){ return '<path d="' + d + '" fill="#9a3412"/>'; }).join("") + "</svg></button>";
+      var sel = MOTIVO_SEL === todos[i];
+      return '<button class="mot' + (sel ? " sel" : "") + '" data-i="' + i + '" title="' + (m.tema ? m.tema + " · " : "") + m.nombre + '"><svg viewBox="0 0 100 100">' +
+        m.paths.map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("") + '</svg><span>' + m.nombre + '</span></button>';
     }).join("");
   document.querySelectorAll("#gridMotivos .mot").forEach(function(b){
     b.onclick = function(){
       var i = Number(b.dataset.i);
-      MOTIVO_SEL = i < 0 ? null : todos[i];
+      MOTIVO_SEL = i < 0 ? null : MOTIVOS_IA.concat(BIBLIOTECA)[i];
       pintarMotivos(); programarRefresco();
     };
   });
 }
+
 $("#btnIA").onclick = async function(){
   var motivo = $("#motivoTxt").value.trim();
   if (motivo.length < 3) return msgEl("iaMsg", "Describe el motivo primero.", true);
