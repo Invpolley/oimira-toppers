@@ -239,10 +239,12 @@ function rdpJS(pts, eps){
   while (stack.length){
     var seg = stack.pop(), i0 = seg[0], i1 = seg[1];
     var ax = pts[i0][0], ay = pts[i0][1], bx = pts[i1][0], by = pts[i1][1];
-    var dx = bx - ax, dy = by - ay, L = Math.sqrt(dx * dx + dy * dy) || 1;
+    var dx = bx - ax, dy = by - ay, L = Math.sqrt(dx * dx + dy * dy);
     var dmax = 0, im = -1;
     for (var i = i0 + 1; i < i1; i++){
-      var dd = Math.abs(dx * (ay - pts[i][1]) - dy * (ax - pts[i][0])) / L;
+      var dd = L < 1e-9
+        ? Math.sqrt((pts[i][0] - ax) * (pts[i][0] - ax) + (pts[i][1] - ay) * (pts[i][1] - ay))
+        : Math.abs(dx * (ay - pts[i][1]) - dy * (ax - pts[i][0])) / L;
       if (dd > dmax){ dmax = dd; im = i; }
     }
     if (dmax > eps && im > 0){ keep[im] = 1; stack.push([i0, im], [im, i1]); }
