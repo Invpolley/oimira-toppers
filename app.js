@@ -6,7 +6,12 @@ document.getElementById("ver").textContent = C.APP_VERSION;
 /* ================= Biblioteca de motivos (siempre imprimen bien) ================= */
 var BIBLIOTECA = (function(){
   function n1(v){ return Math.round(v*10)/10; }
-  function poly(pts){ return "M"+pts.map(function(p){return n1(p[0])+" "+n1(p[1]);}).join(" L ")+" Z"; }
+  function poly(pts){
+    var a = 0; // orientacion consistente: giro positivo (como los circulos)
+    for (var i = 0; i < pts.length; i++){ var p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }
+    if (a < 0) pts = pts.slice().reverse();
+    return "M"+pts.map(function(p){return n1(p[0])+" "+n1(p[1]);}).join(" L ")+" Z";
+  }
   function ell(cx,cy,rx,ry){ var kx=n1(rx*.5523),ky=n1(ry*.5523);
     return "M"+n1(cx-rx)+" "+n1(cy)+" C"+n1(cx-rx)+" "+n1(cy-ky)+" "+n1(cx-kx)+" "+n1(cy-ry)+" "+n1(cx)+" "+n1(cy-ry)+" C"+n1(cx+kx)+" "+n1(cy-ry)+" "+n1(cx+rx)+" "+n1(cy-ky)+" "+n1(cx+rx)+" "+n1(cy)+" C"+n1(cx+rx)+" "+n1(cy+ky)+" "+n1(cx+kx)+" "+n1(cy+ry)+" "+n1(cx)+" "+n1(cy+ry)+" C"+n1(cx-kx)+" "+n1(cy+ry)+" "+n1(cx-rx)+" "+n1(cy+ky)+" "+n1(cx-rx)+" "+n1(cy)+" Z"; }
   function circ(cx,cy,r){ return ell(cx,cy,r,r); }
@@ -238,6 +243,10 @@ function construir(){
   var padX = cw * 0.14 + SIZE * 0.25, padY = ch * 0.14 + SIZE * 0.25;
   var plateW = cw + padX * 2, plateH = ch + padY * 2;
   var esc = anchoMm / plateW;
+  if ($("#placa").value === "contorno"){
+    var mg0 = Math.max(3, anchoMm * 0.032);
+    esc = (anchoMm - 2 * mg0) / cw; // el contorno agrega el margen: asi el ancho final = pedido
+  }
   function T(shapes){
     return shapes.map(function(s){
       return bakeShape(s, function(x){ return (x - ccx) * esc; }, function(y){ return (y - ccy) * esc; }); // ya esta en y-arriba
