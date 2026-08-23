@@ -108,7 +108,7 @@ function construir(){
     var target = Math.max(maxW * 0.45, SIZE * 1.2);
     var k = target / mw;
     var mcx = (mb.min.x + mb.max.x) / 2;
-    var topY = tb.min.y - mh * k * 0.5 - SIZE * 0.45; // centro del motivo sobre el texto
+    var topY = tb.max.y + mh * k * 0.5 + SIZE * 0.45; // centro del motivo sobre el texto (y-arriba)
     raw.forEach(function(s){
       motShapes.push(bakeShape(s,
         function(x){ return (x - mcx) * k; },
@@ -129,7 +129,7 @@ function construir(){
   var esc = anchoMm / plateW;
   function T(shapes){
     return shapes.map(function(s){
-      return bakeShape(s, function(x){ return (x - ccx) * esc; }, function(y){ return (ccy - y) * esc; }); // flip a "y arriba" en mm
+      return bakeShape(s, function(x){ return (x - ccx) * esc; }, function(y){ return (y - ccy) * esc; }); // ya esta en y-arriba
     });
   }
   var textMm = T(textShapes), motMm = T(motShapes);
