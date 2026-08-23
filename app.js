@@ -22,7 +22,7 @@ var BIBLIOTECA = (function(){
   function heart(cx,cy,s){ function X(v){return n1(cx+v*s);} function Y(v){return n1(cy+v*s);}
     return "M"+X(0)+" "+Y(33)+" C"+X(-8)+" "+Y(22)+" "+X(-35)+" "+Y(7)+" "+X(-35)+" "+Y(-11)+" C"+X(-35)+" "+Y(-27)+" "+X(-17)+" "+Y(-32)+" "+X(-7)+" "+Y(-23)+" C"+X(-3)+" "+Y(-19)+" "+X(0)+" "+Y(-13)+" "+X(0)+" "+Y(-13)+" C"+X(0)+" "+Y(-13)+" "+X(3)+" "+Y(-19)+" "+X(7)+" "+Y(-23)+" C"+X(17)+" "+Y(-32)+" "+X(35)+" "+Y(-27)+" "+X(35)+" "+Y(-11)+" C"+X(35)+" "+Y(7)+" "+X(8)+" "+Y(22)+" "+X(0)+" "+Y(33)+" Z"; }
   function lazo(cx,cy,s){ return [poly([[cx-13*s,cy-7*s],[cx-2*s,cy],[cx-13*s,cy+7*s]]), poly([[cx+13*s,cy-7*s],[cx+2*s,cy],[cx+13*s,cy+7*s]]), circ(cx,cy,3.4*s)]; }
-  var oso = [circ(50,34,16), circ(36,20,8), circ(64,20,8), circ(50,66,18), circ(40,82,6), circ(60,82,6)];
+  var oso = [circ(50,28,13), circ(40,17,6), circ(60,17,6), circ(50,60,18), ell(31,54,7,10), ell(69,54,7,10), circ(40,77,6.5), circ(60,77,6.5)];
   function copo(){ var ds=[circ(50,50,8)];
     for(var i=0;i<6;i++){ var a=i*Math.PI/3, ca=Math.cos(a), sa=Math.sin(a);
       var pt=function(x,y){ return [50+x*ca-y*sa, 50+x*sa+y*ca]; };
@@ -33,10 +33,10 @@ var BIBLIOTECA = (function(){
     return ds; }
   var interr = ["M28 28 C28 8 72 8 72 28 C72 42 60 46 56 52 L56 62 L45 62 L45 48 C45 40 56 38 58 30 C59 22 41 22 41 29 L41 32 L28 32 Z", circ(50,74,7)];
   return [
-    { nombre:"Osito ♂", tema:"Baby Shower", paths: oso.concat(lazo(50,52,1.5)) },
-    { nombre:"Osita ♀", tema:"Baby Shower", paths: oso.concat(lazo(36,10,0.9)) },
+    { nombre:"Osito ♂", tema:"Baby Shower", paths: oso.concat(lazo(50,42,1.3)) },
+    { nombre:"Osita ♀", tema:"Baby Shower", paths: oso.concat(lazo(40,8,0.9)) },
     { nombre:"Cruz ♂", tema:"Bautizo", paths: ["M42 10 L58 10 L58 32 L80 32 L80 48 L58 48 L58 90 L42 90 L42 48 L20 48 L20 32 L42 32 Z"] },
-    { nombre:"Paloma ♀", tema:"Bautizo", paths: ["M18 52 C18 40 30 32 44 34 C48 24 60 18 72 22 L64 32 C76 32 84 40 86 50 C74 48 66 50 58 54 C64 60 66 68 62 76 L48 62 L28 74 L38 58 C26 58 18 56 18 52 Z"] },
+    { nombre:"Paloma ♀", tema:"Bautizo", paths: [ell(50,52,20,12), circ(67,40,8), poly([[74,37],[82,40],[74,43]]), poly([[40,46],[28,16],[56,42]]), poly([[34,54],[12,68],[18,50]])] },
     { nombre:"Biberón ♂", tema:"Nacimiento", paths: [ell(50,13,6,8), rc(40,19,20,9), rc(36,28,28,52), ell(50,80,14,6)] },
     { nombre:"Piecitos ♀", tema:"Nacimiento", paths: [ell(35,60,13,19), circ(28,40,4.5), circ(35,36.5,5), circ(42,40,5), ell(65,60,13,19), circ(72,40,4.5), circ(65,36.5,5), circ(58,40,5)] },
     { nombre:"¿Niño? ♂", tema:"Revelación", paths: interr.concat(lazo(50,89,1)) },
