@@ -406,7 +406,7 @@ function construir(){
   }
   function barrasConectoras(){
     var bars = [];
-    lineInfo.forEach(function(li){ bars.push(barra(-li.hw * 0.96, li.base - 1.5, li.hw * 0.96, li.base + 1.1)); });
+    lineInfo.forEach(function(li){ bars.push(barra(-li.hw * 0.86, li.base + 0.5, li.hw * 0.86, li.base + 3.4)); }); // escondida tras el cuerpo de las letras
     for (var i = 0; i + 1 < lineInfo.length; i++){
       var hw2 = Math.min(lineInfo[i].hw, lineInfo[i + 1].hw) * 0.55;
       [-hw2, hw2].forEach(function(px){ bars.push(barra(px - 1.3, lineInfo[i + 1].base, px + 1.3, lineInfo[i].base)); });
@@ -485,7 +485,7 @@ function construir(){
     plateShapes = [ringS];
     lineInfo.forEach(function(li){
       var half = Math.sqrt(Math.max(0, (R - 1) * (R - 1) - li.base * li.base));
-      plateShapes.push(barra(-half, li.base - 1.5, half, li.base + 1.1));
+      plateShapes.push(barra(-half, li.base + 0.5, half, li.base + 3.4));
     });
     barrasConectoras().forEach(function(b){ plateShapes.push(b); });
     if ($("#palitos").checked){
