@@ -803,7 +803,7 @@ function construir3mf(){
   // Bambu Studio: asignacion de extruder (filamento) por objeto
   zip.file("Metadata/model_settings.config", '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n' +
     objInfo.map(function(o){ return '  <object id="' + o.id + '">\n    <metadata key="name" value="' + o.nombre + '"/>\n    <metadata key="extruder" value="' + o.ext + '"/>\n  </object>\n'; }).join("") + '</config>');
-  return zip.generateAsync({ type: "blob", mimeType: "model/3mf" });
+  return zip.generateAsync({ type: "blob", mimeType: "model/3mf", compression: "DEFLATE", compressionOptions: { level: 6 } });
 }
 function nombreArchivo(ext){
   var base = ($("#l1").value.trim() || "topper").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").slice(0,30);
@@ -830,7 +830,7 @@ $("#btnStl").onclick = async function(){
   [["placa","1-placa"],["texto","2-texto"],["motivo","3-motivo"],["adorno","4-adorno"],["borde","5-borde"]].forEach(function(p){
     if (GEOS[p[0]]) zip.file(p[1] + ".stl", stlBinario(GEOS[p[0]]));
   });
-  var blob = await zip.generateAsync({ type: "blob" });
+  var blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
   descargar(blob, nombreArchivo("-stl.zip"));
   msgEl("dlMsg", "✅ ZIP con STLs por color descargado. Impórtalos juntos en Bambu Studio (como un objeto).");
 };
