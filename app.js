@@ -588,8 +588,37 @@ function construir(){
   var dRel = fullDepth ? grosor + relieve : relieve;
   var gPlaca = extr(plateShapes, grosor);
   var gTexto = extr(textMm, dRel); if (gTexto && !fullDepth) gTexto.translate(0, 0, grosor);
-  var gMot = extr(motMm.concat(adMm), dRel); if (gMot && !fullDepth) gMot.translate(0, 0, grosor);
-  return { placa: gPlaca, texto: gTexto, motivo: gMot, anchoMm: anchoMm, altoMm: plateHmm };
+  var gMot = extr(motMm, dRel); if (gMot && !fullDepth) gMot.translate(0, 0, grosor);
+  var gAd = extr(adMm, dRel); if (gAd && !fullDepth) gAd.translate(0, 0, grosor);
+  // --- borde de color siguiendo la silueta de la placa ---
+  var gBorde = null;
+  var bordeChk = document.getElementById("bordeOn");
+  if (bordeChk && bordeChk.checked && plateShapes.length){
+    var bw = Math.max(1.8, anchoMm * 0.016);
+    var ringsP = [];
+    plateShapes.forEach(function(s){
+      var pts = s.extractPoints(24);
+      if (pts.shape.length > 2) ringsP.push(pts.shape);
+      (pts.holes || []).forEach(function(hh){ if (hh.length > 2) ringsP.push(hh); });
+    });
+    var cB = new ClipperLib.Clipper();
+    cB.AddPaths(toClip(ringsP), ClipperLib.PolyType.ptSubject, true);
+    var UB = new ClipperLib.Paths();
+    cB.Execute(ClipperLib.ClipType.ctUnion, UB, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+    var coB = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    coB.AddPaths(UB, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+    var EB = new ClipperLib.Paths();
+    coB.Execute(EB, -bw * CLIP_ESC);
+    var cB2 = new ClipperLib.Clipper();
+    cB2.AddPaths(UB, ClipperLib.PolyType.ptSubject, true);
+    cB2.AddPaths(EB, ClipperLib.PolyType.ptClip, true);
+    var treeB = new ClipperLib.PolyTree();
+    cB2.Execute(ClipperLib.ClipType.ctDifference, treeB, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+    var bordeShapes = treeToShapes(treeB);
+    gBorde = extr(bordeShapes, relieve);
+    if (gBorde) gBorde.translate(0, 0, grosor);
+  }
+  return { placa: gPlaca, texto: gTexto, motivo: gMot, adorno: gAd, borde: gBorde, anchoMm: anchoMm, altoMm: plateHmm };
 }
 
 /* ================= Vista previa 3D ================= */
@@ -625,11 +654,13 @@ function refrescar(){
   add(b.placa, $("#c1").value);
   add(b.texto, $("#c2").value);
   add(b.motivo, $("#c3").value);
+  add(b.adorno, $("#c4").value);
+  add(b.borde, $("#c5").value);
 }
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(refrescar, 350); }
-["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3"].forEach(function(id){
+["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3","c4","c5","bordeOn"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
@@ -756,9 +787,9 @@ function geoXml(geo, id, pindex, nombre){
   return '<object id="'+id+'" type="model" name="'+nombre+'" pid="1" pindex="'+pindex+'"><mesh><vertices>'+order.join("")+'</vertices><triangles>'+tri.join("")+'</triangles></mesh></object>';
 }
 function construir3mf(){
-  var colores = [$("#c1").value, $("#c2").value, $("#c3").value];
+  var colores = [$("#c1").value, $("#c2").value, $("#c3").value, $("#c4").value, $("#c5").value];
   var partes = [], items = [], objInfo = [], id = 2;
-  [["placa","Placa",0],["texto","Texto",1],["motivo","Motivo",2]].forEach(function(p){
+  [["placa","Placa",0],["texto","Texto",1],["motivo","Motivo",2],["adorno","Adorno",3],["borde","Borde",4]].forEach(function(p){
     if (GEOS[p[0]]){ partes.push(geoXml(GEOS[p[0]], id, p[2], p[1])); items.push('<item objectid="'+id+'"/>'); objInfo.push({ id: id, nombre: p[1], ext: p[2] + 1 }); id++; }
   });
   var model = '<?xml version="1.0" encoding="UTF-8"?>' +
@@ -796,12 +827,41 @@ $("#btnStl").onclick = async function(){
   if (!GEOS || !GEOS.placa) return msgEl("dlMsg", "Escribe al menos una línea de texto.", true);
   msgEl("dlMsg", "Generando STLs…");
   var zip = new JSZip();
-  [["placa","1-placa"],["texto","2-texto"],["motivo","3-motivo"]].forEach(function(p){
+  [["placa","1-placa"],["texto","2-texto"],["motivo","3-motivo"],["adorno","4-adorno"],["borde","5-borde"]].forEach(function(p){
     if (GEOS[p[0]]) zip.file(p[1] + ".stl", stlBinario(GEOS[p[0]]));
   });
   var blob = await zip.generateAsync({ type: "blob" });
   descargar(blob, nombreArchivo("-stl.zip"));
   msgEl("dlMsg", "✅ ZIP con STLs por color descargado. Impórtalos juntos en Bambu Studio (como un objeto).");
+};
+
+/* ================= Aviso al salir + enviar por correo ================= */
+window.addEventListener("beforeunload", function(e){
+  var hay = ["l1","l2","l3"].some(function(id){ var el = document.getElementById(id); return el && el.value.trim(); });
+  if (hay){ e.preventDefault(); e.returnValue = "Se perdera el diseno actual."; return e.returnValue; }
+});
+document.getElementById("btnMail").onclick = async function(){
+  refrescar();
+  if (!GEOS || !GEOS.placa) return msgEl("dlMsg", "Escribe al menos una linea de texto.", true);
+  var btn = document.getElementById("btnMail"); btn.disabled = true;
+  msgEl("dlMsg", "Generando y enviando a tu correo…");
+  try {
+    var blob = await construir3mf();
+    var b64 = await new Promise(function(res, rej){
+      var fr = new FileReader();
+      fr.onload = function(){ res(String(fr.result).split(",")[1]); };
+      fr.onerror = rej;
+      fr.readAsDataURL(blob);
+    });
+    var r = await fetch(C.SUPABASE_URL + "/functions/v1/topper-correo", {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY },
+      body: JSON.stringify({ nombre: nombreArchivo(".3mf"), archivo: b64 }),
+    });
+    var j = await r.json().catch(function(){ return {}; });
+    if (j.ok) msgEl("dlMsg", "✅ Enviado a " + (j.para || "tu correo") + ".");
+    else msgEl("dlMsg", j.error || "No se pudo enviar. Intenta de nuevo.", true);
+  } catch (e) { msgEl("dlMsg", "No se pudo enviar. Revisa tu conexion.", true); }
+  finally { btn.disabled = false; }
 };
 
 /* ================= Arranque ================= */

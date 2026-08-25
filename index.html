@@ -121,11 +121,15 @@
         <label>Placa<br><input type="color" id="c1" class="colorbox" value="#f5f0e8" /></label>
         <label>Texto<br><input type="color" id="c2" class="colorbox" value="#9a3412" /></label>
         <label>Motivo<br><input type="color" id="c3" class="colorbox" value="#c2410c" /></label>
+        <label>Adorno<br><input type="color" id="c4" class="colorbox" value="#d97706" /></label>
+        <label>Borde<br><input type="color" id="c5" class="colorbox" value="#9a3412" /></label>
+        <label style="align-self:flex-end"><input type="checkbox" id="bordeOn" /> Borde de color en la placa</label>
       </div>
     </div>
     <div class="card">
       <button class="btn" id="btn3mf" style="width:100%">⬇️ Descargar 3MF (Bambu Studio)</button>
       <button class="btn sec" id="btnStl" style="width:100%;margin-top:8px">⬇️ Descargar STLs por color (ZIP)</button>
+      <button class="btn sec" id="btnMail" style="width:100%;margin-top:8px">📧 Enviar a mi correo</button>
       <div id="dlMsg" class="msg"></div>
       <p style="font-size:11px;color:var(--muted);margin:10px 0 0">En Bambu Studio: abre el .3mf y asigna el filamento a cada pieza (Placa / Texto / Motivo) con las teclas 1-3 o clic derecho.</p>
     </div>
@@ -135,7 +139,7 @@
     <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Vista previa 3D — arrastra para rotar, rueda para acercar. El diseño se actualiza solo.</p>
   </div>
 </main>
-<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-23.8</div>
+<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-23.9</div>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -145,7 +149,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="motivos-data.js?v=1"></script>
 <script src="adornos-data.js?v=1"></script>
-<script src="app.js?v=16"></script>
+<script src="app.js?v=17"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=1").catch(()=>{}));
 </script>
