@@ -37,6 +37,14 @@
   .colorbox{width:38px;height:38px;padding:2px;border-radius:8px;border:1px solid var(--line)}
   .medidas input{width:74px}
   b.sec-t{display:block;font-size:13px;margin-bottom:6px}
+  .colsel{display:flex;align-items:center;gap:8px;margin-top:6px}
+  .colsel>span{width:52px;font-size:12px;color:var(--muted)}
+  .sw{display:flex;gap:6px;flex-wrap:wrap}
+  .swb{width:26px;height:26px;border-radius:50%;border:2px solid #00000022;cursor:pointer;padding:0}
+  .swb.sel{outline:3px solid var(--brand2);outline-offset:1px}
+  .filtag{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);border-radius:20px;padding:3px 8px;margin:3px 3px 0 0;font-size:12px}
+  .filtag i{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid #00000022}
+  .filtag button{border:0;background:none;color:var(--bad);cursor:pointer;font-size:14px;padding:0 2px}
 </style>
 </head>
 <body>
@@ -117,14 +125,33 @@
         <label><input type="checkbox" id="palitos" checked /> Palitos integrados</label>
         <label>Largo palitos<br><input id="palLen" type="number" value="45" min="20" max="90" /></label>
       </div>
-      <div class="row" style="margin-top:8px">
-        <label>Placa<br><input type="color" id="c1" class="colorbox" value="#f5f0e8" /></label>
-        <label>Texto<br><input type="color" id="c2" class="colorbox" value="#9a3412" /></label>
-        <label>Motivo<br><input type="color" id="c3" class="colorbox" value="#c2410c" /></label>
-        <label>Adorno<br><input type="color" id="c4" class="colorbox" value="#d97706" /></label>
-        <label>Borde<br><input type="color" id="c5" class="colorbox" value="#9a3412" /></label>
-        <label style="align-self:flex-end"><input type="checkbox" id="bordeOn" /> Borde de color en la placa</label>
+      <div style="margin-top:10px">
+        <label>Colores (tus filamentos)</label>
+        <div class="colsel"><span>Placa</span><div class="sw" data-for="c1"></div></div>
+        <div class="colsel"><span>Texto</span><div class="sw" data-for="c2"></div></div>
+        <div class="colsel"><span>Motivo</span><div class="sw" data-for="c3"></div></div>
+        <div class="colsel"><span>Adorno</span><div class="sw" data-for="c4"></div></div>
+        <div class="colsel"><span>Borde</span><div class="sw" data-for="c5"></div></div>
+        <label style="display:block;margin-top:8px"><input type="checkbox" id="bordeOn" /> Borde de color en la placa</label>
+        <input type="color" id="c1" value="#f5f5f5" hidden />
+        <input type="color" id="c2" value="#d32f2f" hidden />
+        <input type="color" id="c3" value="#1565c0" hidden />
+        <input type="color" id="c4" value="#f48fb1" hidden />
+        <input type="color" id="c5" value="#1c1c1c" hidden />
       </div>
+    </div>
+    <div class="card">
+      <b class="sec-t">⚙️ Filamentos de la impresora</b>
+      <button class="btn sec mini" id="btnAdminFil">🔒 Editar (solo administrador)</button>
+      <div id="panelFil" style="display:none">
+        <div id="listaFil" style="margin-top:8px"></div>
+        <div class="row" style="margin-top:8px">
+          <input type="color" id="filColor" class="colorbox" value="#1565c0" />
+          <input id="filNombre" placeholder="Nombre (ej. Verde)" style="width:120px" maxlength="20" />
+          <button class="btn mini" id="btnAddFil">Agregar</button>
+        </div>
+      </div>
+      <div id="filMsg" class="msg"></div>
     </div>
     <div class="card">
       <button class="btn" id="btn3mf" style="width:100%">⬇️ Descargar 3MF (Bambu Studio)</button>
@@ -139,7 +166,7 @@
     <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Vista previa 3D — arrastra para rotar, rueda para acercar. El diseño se actualiza solo.</p>
   </div>
 </main>
-<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-23.9</div>
+<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-25.1</div>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -149,7 +176,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="motivos-data.js?v=1"></script>
 <script src="adornos-data.js?v=1"></script>
-<script src="app.js?v=18"></script>
+<script src="app.js?v=19"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=1").catch(()=>{}));
 </script>

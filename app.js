@@ -835,6 +835,83 @@ $("#btnStl").onclick = async function(){
   msgEl("dlMsg", "✅ ZIP con STLs por color descargado. Impórtalos juntos en Bambu Studio (como un objeto).");
 };
 
+/* ================= Filamentos (paleta global, edicion solo admin con PIN) ================= */
+var FIL_DEF = [
+  { n:"Blanco", c:"#f5f5f5" }, { n:"Negro", c:"#1c1c1c" }, { n:"Rojo", c:"#d32f2f" },
+  { n:"Azul", c:"#1565c0" }, { n:"Amarillo", c:"#fbc02d" }, { n:"Rosado", c:"#f48fb1" }
+];
+var FILAMENTOS = FIL_DEF.slice();
+var PIN_ADMIN = null;
+var PARTES_COLOR = [["c1","Placa"],["c2","Texto"],["c3","Motivo"],["c4","Adorno"],["c5","Borde"]];
+
+function restHeaders(){ return { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY }; }
+async function cargarFilamentos(){
+  try {
+    var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_filamentos?select=nombre,color&order=orden", { headers: restHeaders() });
+    var j = await r.json();
+    if (Array.isArray(j) && j.length) FILAMENTOS = j.map(function(f){ return { n: f.nombre, c: f.color }; });
+  } catch (e) {}
+  pintarFilamentos(); pintarSwatches();
+}
+async function guardarFilamentos(){
+  var r = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/topper_filamentos_guardar", {
+    method: "POST", headers: restHeaders(),
+    body: JSON.stringify({ p_pin: PIN_ADMIN, p_lista: FILAMENTOS.map(function(f){ return { n: f.n, c: f.c }; }) }),
+  });
+  if (!r.ok){ var j = await r.json().catch(function(){ return {}; }); throw new Error(j.message || "No se pudo guardar"); }
+}
+function guardarColores(){ try { var o = {}; PARTES_COLOR.forEach(function(p){ o[p[0]] = $("#" + p[0]).value; }); localStorage.setItem("tp_colores", JSON.stringify(o)); } catch (e) {} }
+function pintarSwatches(){
+  PARTES_COLOR.forEach(function(p){
+    var cont = document.querySelector('.sw[data-for="' + p[0] + '"]');
+    if (!cont) return;
+    var cur = $("#" + p[0]).value.toLowerCase();
+    cont.innerHTML = FILAMENTOS.map(function(f){
+      return '<button type="button" class="swb' + (f.c.toLowerCase() === cur ? " sel" : "") + '" data-c="' + f.c + '" title="' + f.n + '" style="background:' + f.c + '"></button>';
+    }).join("");
+    cont.querySelectorAll(".swb").forEach(function(b){
+      b.onclick = function(){ $("#" + p[0]).value = b.dataset.c; guardarColores(); pintarSwatches(); programarRefresco(); };
+    });
+  });
+}
+function pintarFilamentos(){
+  var el = document.getElementById("listaFil");
+  if (!el) return;
+  el.innerHTML = FILAMENTOS.map(function(f, i){
+    return '<span class="filtag"><i style="background:' + f.c + '"></i>' + f.n + '<button data-i="' + i + '" title="Quitar">×</button></span>';
+  }).join("");
+  el.querySelectorAll("button").forEach(function(b){
+    b.onclick = async function(){
+      if (FILAMENTOS.length <= 1) return msgEl("filMsg", "Debe quedar al menos un color.", true);
+      var quitado = FILAMENTOS.splice(Number(b.dataset.i), 1)[0];
+      try { await guardarFilamentos(); pintarFilamentos(); pintarSwatches(); msgEl("filMsg", "✅ Guardado."); }
+      catch (e){ FILAMENTOS.push(quitado); msgEl("filMsg", e.message, true); }
+    };
+  });
+}
+document.getElementById("btnAdminFil").onclick = async function(){
+  if (PIN_ADMIN){ document.getElementById("panelFil").style.display = ""; return; }
+  var pin = prompt("PIN de administrador:");
+  if (!pin) return;
+  msgEl("filMsg", "Verificando…");
+  try {
+    var r = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/docs_pin_ok", {
+      method: "POST", headers: restHeaders(), body: JSON.stringify({ p_pin: pin }),
+    });
+    var ok = await r.json();
+    if (ok === true){ PIN_ADMIN = pin; document.getElementById("panelFil").style.display = ""; document.getElementById("btnAdminFil").style.display = "none"; msgEl("filMsg", "Modo administrador activo."); }
+    else msgEl("filMsg", "PIN incorrecto.", true);
+  } catch (e){ msgEl("filMsg", "No se pudo verificar el PIN.", true); }
+};
+document.getElementById("btnAddFil").onclick = async function(){
+  var nom = document.getElementById("filNombre").value.trim();
+  var col = document.getElementById("filColor").value;
+  if (!nom) return msgEl("filMsg", "Escribe el nombre del color.", true);
+  FILAMENTOS.push({ n: nom, c: col });
+  try { await guardarFilamentos(); document.getElementById("filNombre").value = ""; pintarFilamentos(); pintarSwatches(); msgEl("filMsg", "✅ Guardado."); }
+  catch (e){ FILAMENTOS.pop(); msgEl("filMsg", e.message, true); }
+};
+
 /* ================= Aviso al salir + enviar por correo ================= */
 window.addEventListener("beforeunload", function(e){
   var hay = ["l1","l2","l3"].some(function(id){ var el = document.getElementById(id); return el && el.value.trim(); });
@@ -867,6 +944,12 @@ document.getElementById("btnMail").onclick = async function(){
 /* ================= Arranque ================= */
 (async function init(){
   tamCanvas(); loop(); pintarMotivos(); pintarAdornos();
+  try {
+    var sc = JSON.parse(localStorage.getItem("tp_colores"));
+    if (sc) PARTES_COLOR.forEach(function(p){ if (sc[p[0]]) $("#" + p[0]).value = sc[p[0]]; });
+    else { $("#c1").value = "#f5f5f5"; $("#c2").value = "#d32f2f"; $("#c3").value = "#1565c0"; $("#c4").value = "#f48fb1"; $("#c5").value = "#1c1c1c"; }
+  } catch (e) {}
+  pintarSwatches(); cargarFilamentos();
   try { await cargarFuente("greatvibes"); } catch (e) {}
   ["pacifico","poppins"].forEach(function(k){ cargarFuente(k).catch(function(){}); });
   $("#fuente").addEventListener("change", function(){ cargarFuente($("#fuente").value).then(programarRefresco); });
