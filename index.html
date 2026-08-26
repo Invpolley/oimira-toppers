@@ -100,6 +100,8 @@
           </select>
         </label>
         <label>Tamaño motivo %<br><input id="motTam" type="number" value="100" min="30" max="300" step="10" style="width:80px" /></label>
+        <label>Girar motivo °<br><input id="motRot" type="number" value="0" min="-180" max="180" step="5" style="width:74px" /></label>
+        <button class="btn mini sec" id="btnCentrar" title="Volver todo al centro" style="align-self:flex-end">↺ Centrar</button>
       </div>
       <div class="motivos" id="gridMotivos"></div>
       <b class="sec-t" style="margin-top:12px">💫 Adorno decorativo</b>
@@ -111,6 +113,7 @@
           </select>
         </label>
         <label>Tamaño adorno %<br><input id="adTam" type="number" value="100" min="30" max="300" step="10" style="width:80px" /></label>
+        <label>Girar adorno °<br><input id="adRot" type="number" value="0" min="-180" max="180" step="5" style="width:74px" /></label>
       </div>
       <div class="motivos" id="gridAdornos"></div>
     </div>
@@ -163,10 +166,10 @@
   </div>
   <div>
     <canvas id="vista"></canvas>
-    <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Vista previa 3D — arrastra para rotar, rueda para acercar. El diseño se actualiza solo.</p>
+    <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Vista previa 3D — arrastra el <b>motivo o adorno</b> para moverlo a donde quieras; arrastra el fondo para girar la vista.</p>
   </div>
 </main>
-<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-25.2</div>
+<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-25.3</div>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -176,7 +179,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="motivos-data.js?v=1"></script>
 <script src="adornos-data.js?v=1"></script>
-<script src="app.js?v=20"></script>
+<script src="app.js?v=21"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=1").catch(()=>{}));
 </script>

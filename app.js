@@ -11,6 +11,10 @@ var FUENTES = {}; // nombre -> opentype.Font
 var MOTIVO_SEL = null;       // {nombre, paths}
 var MOTIVOS_IA = [];
 var GEOS = null;             // { placa, texto, motivo } BufferGeometry en mm
+var MOT_OFF = { x: 0, y: 0 };    // desplazamiento del motivo (unidades de fuente)
+var AD_OFF = { x: 0, y: 0 };     // desplazamiento del adorno
+var ULT_ESC = 1;                 // ultima escala mm/unidad (para convertir el arrastre)
+var MESH_MOT = null, MESH_AD = null;
 var renderTimer = null;
 
 function msgEl(id, t, err){ var el = $("#" + id); el.textContent = t || ""; el.className = "msg " + (err ? "err" : "ok"); }
@@ -174,6 +178,14 @@ function motivoShapes(m){
   var out = opRings(base, det, det ? ClipperLib.ClipType.ctDifference : ClipperLib.ClipType.ctUnion);
   if (estilo === "solido") out.forEach(function(s){ s.holes = []; }); // silueta maciza
   return out;
+}
+// bake con transformacion conjunta (rotacion + traslado)
+function bakeShape2(shape, f){
+  var pts = shape.extractPoints(24);
+  function mp(arr){ return arr.map(function(p){ var q = f(p.x, p.y); return new THREE.Vector2(q[0], q[1]); }); }
+  var s = new THREE.Shape(mp(pts.shape));
+  s.holes = (pts.holes || []).map(function(h){ return new THREE.Path(mp(h)); });
+  return s;
 }
 function svgPathsToShapes(paths){
   var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
@@ -376,11 +388,13 @@ function construir(){
     var gapM = SIZE * 0.45, cyM;
     if (motArriba){ cyM = topStack + mh * k * 0.5 + gapM; topStack += mh * k + gapM; }
     else { cyM = botStack - mh * k * 0.5 - gapM; botStack -= mh * k + gapM; }
+    var rotM = (Number((document.getElementById("motRot") || {}).value) || 0) * Math.PI / 180;
+    var cosM = Math.cos(rotM), sinM = Math.sin(rotM), mcy = (mb.min.y + mb.max.y) / 2;
     raw.forEach(function(s){
-      motShapes.push(bakeShape(s,
-        function(x){ return (x - mcx) * k; },
-        function(y){ return (y - (mb.min.y + mb.max.y) / 2) * -k + cyM; } // flip svg
-      ));
+      motShapes.push(bakeShape2(s, function(px, py){
+        var x0 = (px - mcx) * k, y0 = (py - mcy) * -k; // centrado + flip svg
+        return [x0 * cosM - y0 * sinM + MOT_OFF.x, x0 * sinM + y0 * cosM + cyM + MOT_OFF.y];
+      }));
     });
   }
 
@@ -401,11 +415,13 @@ function construir(){
       var gapA = SIZE * 0.18, cyA;
       if (adAbajo){ cyA = botStack - ah2 * ka * 0.5 - gapA; botStack -= ah2 * ka + gapA; }
       else { cyA = topStack + ah2 * ka * 0.5 + gapA; topStack += ah2 * ka + gapA; }
+      var rotA = (Number((document.getElementById("adRot") || {}).value) || 0) * Math.PI / 180;
+      var cosA = Math.cos(rotA), sinA = Math.sin(rotA), acy = (abb.min.y + abb.max.y) / 2;
       rawA.forEach(function(s){
-        adShapes.push(bakeShape(s,
-          function(x){ return (x - acx2) * ka; },
-          function(y){ return (y - (abb.min.y + abb.max.y) / 2) * -ka + cyA; }
-        ));
+        adShapes.push(bakeShape2(s, function(px, py){
+          var x0 = (px - acx2) * ka, y0 = (py - acy) * -ka;
+          return [x0 * cosA - y0 * sinA + AD_OFF.x, x0 * sinA + y0 * cosA + cyA + AD_OFF.y];
+        }));
       });
     }
   }
@@ -435,6 +451,7 @@ function construir(){
     });
   }
   var textMm = T(textShapes), motMm = T(motShapes), adMm = T(adShapes);
+  ULT_ESC = esc;
   var plateWmm = plateW * esc, plateHmm = plateH * esc;
 
   // barras conectoras (estilo acrilico / aro)
@@ -463,9 +480,10 @@ function construir(){
     var tTop = (tb.max.y - ccy) * esc, tBot = (tb.min.y - ccy) * esc;
     [motMm, adMm].forEach(function(arr){
       if (!arr.length || !textMm.length) return;
-      var eb = shapesBBox(arr), ec = (eb.min.y + eb.max.y) / 2;
-      if (ec > tTop) bars.push(barra(-1.2, tTop - 2, 1.2, ec));
-      else bars.push(barra(-1.2, ec, 1.2, tBot + 2));
+      var eb = shapesBBox(arr), ecx = (eb.min.x + eb.max.x) / 2, ecy = (eb.min.y + eb.max.y) / 2;
+      if (ecy > tTop) bars.push(barra(ecx - 1.2, tTop - 2, ecx + 1.2, ecy));
+      else if (ecy < tBot) bars.push(barra(ecx - 1.2, ecy, ecx + 1.2, tBot + 2));
+      else bars.push(barra(Math.min(ecx, 0) - 1.2, ecy - 1.2, Math.max(ecx, 0) + 1.2, ecy + 1.2)); // al costado: puente horizontal
     });
     return bars;
   }
@@ -653,19 +671,73 @@ function refrescar(){
   if (!b) return;
   GEOS = b;
   function add(g, color){
-    if (!g) return;
-    grupo.add(new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: color, roughness: 0.55, metalness: 0.05 })));
+    if (!g) return null;
+    var m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: color, roughness: 0.55, metalness: 0.05 }));
+    grupo.add(m);
+    return m;
   }
   add(b.placa, $("#c1").value);
   add(b.texto, $("#c2").value);
-  add(b.motivo, $("#c3").value);
-  add(b.adorno, $("#c4").value);
+  MESH_MOT = add(b.motivo, $("#c3").value);
+  MESH_AD = add(b.adorno, $("#c4").value);
   add(b.borde, $("#c5").value);
 }
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
+/* --- arrastrar motivo / adorno en la vista --- */
+var _rayo = new THREE.Raycaster(), _pt = new THREE.Vector2();
+var _planoZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+var _arr = null; // { mesh, tipo, inicio }
+function _puntero(ev){
+  var r = canvas.getBoundingClientRect();
+  _pt.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
+  _pt.y = -((ev.clientY - r.top) / r.height) * 2 + 1;
+  _rayo.setFromCamera(_pt, cam);
+}
+canvas.addEventListener("pointerdown", function(ev){
+  if (!GEOS) return;
+  _puntero(ev);
+  var cands = [];
+  if (MESH_MOT) cands.push(MESH_MOT);
+  if (MESH_AD) cands.push(MESH_AD);
+  if (!cands.length) return;
+  var hit = _rayo.intersectObjects(cands)[0];
+  if (!hit) return;
+  var p = new THREE.Vector3();
+  if (!_rayo.ray.intersectPlane(_planoZ, p)) return;
+  _arr = { mesh: hit.object, tipo: hit.object === MESH_MOT ? "m" : "a", inicio: p.clone() };
+  controls.enabled = false;
+  try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
+});
+canvas.addEventListener("pointermove", function(ev){
+  if (!_arr) return;
+  _puntero(ev);
+  var p = new THREE.Vector3();
+  if (!_rayo.ray.intersectPlane(_planoZ, p)) return;
+  _arr.mesh.position.x = p.x - _arr.inicio.x;
+  _arr.mesh.position.y = p.y - _arr.inicio.y;
+});
+function _soltar(){
+  if (!_arr) return;
+  var off = _arr.tipo === "m" ? MOT_OFF : AD_OFF;
+  off.x += _arr.mesh.position.x / (ULT_ESC || 1);
+  off.y += _arr.mesh.position.y / (ULT_ESC || 1);
+  _arr = null;
+  controls.enabled = true;
+  refrescar(); // reconstruye placa, contorno y puentes en la nueva posicion
+}
+canvas.addEventListener("pointerup", _soltar);
+canvas.addEventListener("pointercancel", _soltar);
+document.getElementById("btnCentrar").onclick = function(){
+  MOT_OFF.x = 0; MOT_OFF.y = 0; AD_OFF.x = 0; AD_OFF.y = 0;
+  var mr = document.getElementById("motRot"), ar = document.getElementById("adRot");
+  if (mr) mr.value = 0;
+  if (ar) ar.value = 0;
+  refrescar();
+};
+
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(refrescar, 350); }
-["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3","c4","c5","bordeOn"].forEach(function(id){
+["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
