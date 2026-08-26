@@ -471,12 +471,14 @@ function construir(){
   }
 
   // --- placa ---
-  var plateShapes;
+  var plateShapes, bordeBase = null;
   if (forma === "contorno"){
     var margen = Math.max(3, anchoMm * 0.032);
-    plateShapes = contornoShapes(textMm.concat(motMm).concat(adMm), margen) || [];
+    var puentes = barrasConectoras(); // sustentan motivo y adorno con un cuello solido
+    plateShapes = contornoShapes(textMm.concat(motMm).concat(adMm).concat(puentes), margen) || [];
     if (!plateShapes.length) forma = "ovalo";
     else {
+      bordeBase = plateShapes.slice();
       var cbb = shapesBBox(plateShapes);
       plateWmm = cbb.max.x - cbb.min.x; plateHmm = cbb.max.y - cbb.min.y;
       if ($("#palitos").checked){
@@ -501,16 +503,6 @@ function construir(){
     var rings2 = [];
     textMm.concat(motMm).concat(adMm).forEach(function(s){ var p = s.extractPoints(10).shape; if (p.length > 2) rings2.push(p); });
     barrasConectoras().forEach(function(s){ rings2.push(s.extractPoints(1).shape); });
-    if ($("#palitos").checked && lineInfo.length){
-      var plL = Number($("#palLen").value) || 45;
-      var last = lineInfo[lineInfo.length - 1];
-      var topP = last.base + 1;
-      [motMm, adMm].forEach(function(arr){
-        if (arr.length){ var eb2 = shapesBBox(arr); if (eb2.min.y < topP - 3) topP = eb2.min.y + 2; }
-      });
-      var pxs = last.hw > 16 ? [-last.hw * 0.5, last.hw * 0.5] : [0];
-      pxs.forEach(function(px){ rings2.push(palito(px, topP, plL).extractPoints(1).shape); });
-    }
     var c3 = new ClipperLib.Clipper();
     c3.AddPaths(toClip(rings2), ClipperLib.PolyType.ptSubject, true);
     var U2 = new ClipperLib.Paths();
@@ -523,6 +515,17 @@ function construir(){
     plateShapes = sol2.map(function(p){
       return new THREE.Shape(p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }));
     });
+    bordeBase = plateShapes.slice();
+    if ($("#palitos").checked && lineInfo.length){
+      var plL = Number($("#palLen").value) || 45;
+      var last = lineInfo[lineInfo.length - 1];
+      var topP = last.base + 1;
+      [motMm, adMm].forEach(function(arr){
+        if (arr.length){ var eb2 = shapesBBox(arr); if (eb2.min.y < topP - 3) topP = eb2.min.y + 2; }
+      });
+      var pxs = last.hw > 16 ? [-last.hw * 0.5, last.hw * 0.5] : [0];
+      pxs.forEach(function(px){ plateShapes.push(palito(px, topP, plL)); });
+    }
     var bb4 = shapesBBox(plateShapes);
     plateWmm = bb4.max.x - bb4.min.x; plateHmm = bb4.max.y - bb4.min.y;
   }
@@ -534,6 +537,7 @@ function construir(){
     holeA.absellipse(0, 0, R - ringW, R - ringW, 0, Math.PI * 2, true, 0);
     ringS.holes.push(holeA);
     plateShapes = [ringS];
+    bordeBase = [ringS];
     lineInfo.forEach(function(li){
       var half = Math.sqrt(Math.max(0, (R - 1) * (R - 1) - li.base * li.base));
       plateShapes.push(barra(-half, li.base + 0.5, half, li.base + 3.4));
@@ -561,6 +565,7 @@ function construir(){
     plate.lineTo(-hw, -hh + r); plate.absarc(-hw + r, -hh + r, r, Math.PI, Math.PI * 1.5, false);
   }
   plateShapes = [plate];
+  bordeBase = plateShapes.slice();
   // palitos
   if ($("#palitos").checked){
     var pl = Number($("#palLen").value) || 45, pw = 6;
@@ -596,7 +601,7 @@ function construir(){
   if (bordeChk && bordeChk.checked && plateShapes.length){
     var bw = Math.max(1.8, anchoMm * 0.016);
     var ringsP = [];
-    plateShapes.forEach(function(s){
+    (bordeBase || plateShapes).forEach(function(s){
       var pts = s.extractPoints(24);
       if (pts.shape.length > 2) ringsP.push(pts.shape);
       (pts.holes || []).forEach(function(hh){ if (hh.length > 2) ringsP.push(hh); });
