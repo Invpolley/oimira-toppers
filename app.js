@@ -989,6 +989,94 @@ document.getElementById("btnAddFil").onclick = async function(){
   catch (e){ FILAMENTOS.pop(); msgEl("filMsg", e.message, true); }
 };
 
+/* ================= Bocetos por cliente (guardar / continuar) ================= */
+var BOCETO = null; // { id, cliente, telefono } del boceto abierto
+function estadoDiseno(){
+  var ids = ["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","c1","c2","c3","c4","c5"];
+  var o = { campos: {} };
+  ids.forEach(function(id){ var el = document.getElementById(id); if (el) o.campos[id] = el.value; });
+  o.palitos = $("#palitos").checked;
+  o.bordeOn = document.getElementById("bordeOn") ? $("#bordeOn").checked : false;
+  o.motivo = MOTIVO_SEL ? { nombre: MOTIVO_SEL.nombre, tema: MOTIVO_SEL.tema || null, paths: MOTIVO_SEL.paths, detalles: MOTIVO_SEL.detalles || null } : null;
+  o.adorno = ADORNO_SEL ? { nombre: ADORNO_SEL.nombre, paths: ADORNO_SEL.paths || null, trazos: ADORNO_SEL.trazos || null, grosor: ADORNO_SEL.grosor || null } : null;
+  o.motOff = { x: MOT_OFF.x, y: MOT_OFF.y };
+  o.adOff = { x: AD_OFF.x, y: AD_OFF.y };
+  return o;
+}
+function aplicarDiseno(o){
+  Object.keys(o.campos || {}).forEach(function(id){ var el = document.getElementById(id); if (el) el.value = o.campos[id]; });
+  $("#palitos").checked = !!o.palitos;
+  if (document.getElementById("bordeOn")) $("#bordeOn").checked = !!o.bordeOn;
+  MOTIVO_SEL = o.motivo || null;
+  if (MOTIVO_SEL){
+    var enBib = BIBLIOTECA.filter(function(b){ return b.nombre === MOTIVO_SEL.nombre; })[0];
+    if (enBib) MOTIVO_SEL = enBib;
+    else { MOTIVOS_IA = [MOTIVO_SEL]; }
+  }
+  ADORNO_SEL = o.adorno || null;
+  if (ADORNO_SEL){
+    var enAd = ADORNOS_LISTA.filter(function(a){ return a.nombre === ADORNO_SEL.nombre; })[0];
+    if (enAd) ADORNO_SEL = enAd;
+  }
+  MOT_OFF.x = (o.motOff || {}).x || 0; MOT_OFF.y = (o.motOff || {}).y || 0;
+  AD_OFF.x = (o.adOff || {}).x || 0; AD_OFF.y = (o.adOff || {}).y || 0;
+  guardarColores();
+  pintarMotivos(); pintarAdornos();
+  cargarFuente($("#fuente").value).then(function(){ refrescar(); }).catch(function(){ refrescar(); });
+}
+document.getElementById("btnGuardarBoc").onclick = async function(){
+  var lineas = ["l1","l2","l3"].some(function(id){ return $("#" + id).value.trim(); });
+  if (!lineas && !MOTIVO_SEL) return msgEl("bocMsg", "No hay nada que guardar todavia.", true);
+  var nombre = BOCETO ? BOCETO.cliente : prompt("Nombre del cliente:");
+  if (!nombre || !nombre.trim()) return;
+  var tel = BOCETO ? BOCETO.telefono : prompt("Telefono del cliente:");
+  if (!tel || !tel.trim()) return;
+  tel = tel.replace(/[^0-9+]/g, "");
+  msgEl("bocMsg", "Guardando boceto…");
+  try {
+    if (BOCETO && BOCETO.id){
+      var r1 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + BOCETO.id, {
+        method: "PATCH", headers: restHeaders(),
+        body: JSON.stringify({ diseno: estadoDiseno(), actualizado: new Date().toISOString() }),
+      });
+      if (!r1.ok) throw new Error("guardar");
+    } else {
+      var r2 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto", {
+        method: "POST", headers: Object.assign(restHeaders(), { Prefer: "return=representation" }),
+        body: JSON.stringify({ cliente: nombre.trim(), telefono: tel, diseno: estadoDiseno() }),
+      });
+      if (!r2.ok) throw new Error("guardar");
+      var fila = (await r2.json())[0];
+      BOCETO = { id: fila.id, cliente: fila.cliente, telefono: fila.telefono };
+    }
+    msgEl("bocMsg", "✅ Boceto guardado para " + BOCETO.cliente + " (" + BOCETO.telefono + ").");
+  } catch (e){ msgEl("bocMsg", "No se pudo guardar. Revisa la conexion.", true); }
+};
+document.getElementById("btnAbrirBoc").onclick = async function(){
+  var tel = prompt("Telefono del cliente:");
+  if (!tel || !tel.trim()) return;
+  tel = tel.replace(/[^0-9+]/g, "");
+  msgEl("bocMsg", "Buscando bocetos…");
+  try {
+    var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?telefono=eq." + encodeURIComponent(tel) + "&select=id,cliente,telefono,diseno,actualizado&order=actualizado.desc&limit=10", { headers: restHeaders() });
+    var lista = await r.json();
+    if (!Array.isArray(lista) || !lista.length) return msgEl("bocMsg", "No hay bocetos con ese telefono.", true);
+    var idx = 0;
+    if (lista.length > 1){
+      var menu = lista.map(function(b, i){
+        var t = ((b.diseno.campos || {}).l1 || "") + " " + ((b.diseno.campos || {}).l2 || "");
+        return (i + 1) + ") " + b.cliente + " — " + t.trim() + " (" + b.actualizado.slice(0, 10) + ")";
+      }).join("\n");
+      var op = prompt("Bocetos encontrados:\n" + menu + "\n\nNumero a abrir:", "1");
+      idx = Math.max(1, Math.min(lista.length, Number(op) || 1)) - 1;
+    }
+    var b = lista[idx];
+    BOCETO = { id: b.id, cliente: b.cliente, telefono: b.telefono };
+    aplicarDiseno(b.diseno);
+    msgEl("bocMsg", "✅ Boceto de " + b.cliente + " abierto — al guardar se actualiza este mismo.");
+  } catch (e){ msgEl("bocMsg", "No se pudo buscar. Revisa la conexion.", true); }
+};
+
 /* ================= Aviso al salir + enviar por correo ================= */
 window.addEventListener("beforeunload", function(e){
   var hay = ["l1","l2","l3"].some(function(id){ var el = document.getElementById(id); return el && el.value.trim(); });

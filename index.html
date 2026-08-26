@@ -160,6 +160,11 @@
       <button class="btn" id="btn3mf" style="width:100%">⬇️ Descargar 3MF (Bambu Studio)</button>
       <button class="btn sec" id="btnStl" style="width:100%;margin-top:8px">⬇️ Descargar STLs por color (ZIP)</button>
       <button class="btn sec" id="btnMail" style="width:100%;margin-top:8px">📧 Enviar a mi correo</button>
+      <div class="row" style="margin-top:8px">
+        <button class="btn sec" id="btnGuardarBoc" style="flex:1">💾 Guardar boceto</button>
+        <button class="btn sec" id="btnAbrirBoc" style="flex:1">📂 Abrir boceto</button>
+      </div>
+      <div id="bocMsg" class="msg"></div>
       <div id="dlMsg" class="msg"></div>
       <p style="font-size:11px;color:var(--muted);margin:10px 0 0">En Bambu Studio: abre el .3mf y asigna el filamento a cada pieza (Placa / Texto / Motivo) con las teclas 1-3 o clic derecho.</p>
     </div>
@@ -169,7 +174,7 @@
     <p style="font-size:11.5px;color:var(--muted);margin-top:6px">Vista previa 3D — arrastra el <b>motivo o adorno</b> para moverlo a donde quieras; arrastra el fondo para girar la vista.</p>
   </div>
 </main>
-<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-25.4</div>
+<div class="foot">OiMira Toppers · <span id="ver"></span> · v2026-08-25.5</div>
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -179,7 +184,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="motivos-data.js?v=1"></script>
 <script src="adornos-data.js?v=1"></script>
-<script src="app.js?v=22"></script>
+<script src="app.js?v=23"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=1").catch(()=>{}));
 </script>
