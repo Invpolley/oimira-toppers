@@ -69,7 +69,7 @@ function contornoShapes(shapesMm, delta0){
   var outers = []; (tree.Childs() || []).forEach(function(n){ outers.push(n.Contour()); });
   var delta = delta0, sol = null;
   for (var t = 0; t < 8; t++){
-    var co = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    var co = new ClipperLib.ClipperOffset(2, 0.03 * CLIP_ESC);
     co.AddPaths(outers, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
     sol = new ClipperLib.Paths();
     co.Execute(sol, delta * CLIP_ESC);
@@ -77,7 +77,7 @@ function contornoShapes(shapesMm, delta0){
     if (sol.length <= 1 || t === 7) break;
     delta += 1.6; // engordar hasta unir todo en una pieza
   }
-  sol = ClipperLib.Clipper.CleanPolygons(sol, 0.15 * CLIP_ESC);
+  sol = ClipperLib.Clipper.CleanPolygons(sol, 0.05 * CLIP_ESC);
   return sol.filter(function(p){ return p.length > 2; }).map(function(p){
     return new THREE.Shape(p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }));
   });
@@ -163,7 +163,7 @@ function motivoShapes(m){
     c.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
     var U = new ClipperLib.Paths();
     c.Execute(ClipperLib.ClipType.ctUnion, U, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-    var co = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    var co = new ClipperLib.ClipperOffset(2, 0.03 * CLIP_ESC);
     co.AddPaths(U, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
     var E = new ClipperLib.Paths();
     co.Execute(E, -5 * CLIP_ESC); // grosor de linea ~5% del motivo
@@ -333,7 +333,7 @@ function trazosRings(paths, w){
   data.paths.forEach(function(p){
     p.subPaths.forEach(function(sp){ var r = sp.getPoints(28); if (r.length > 1) polys.push(r); });
   });
-  var co = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+  var co = new ClipperLib.ClipperOffset(2, 0.03 * CLIP_ESC);
   co.AddPaths(toClip(polys), ClipperLib.JoinType.jtRound, ClipperLib.EndType.etOpenRound);
   var sol = new ClipperLib.Paths();
   co.Execute(sol, (w / 2) * CLIP_ESC);
@@ -525,11 +525,11 @@ function construir(){
     c3.AddPaths(toClip(rings2), ClipperLib.PolyType.ptSubject, true);
     var U2 = new ClipperLib.Paths();
     c3.Execute(ClipperLib.ClipType.ctUnion, U2, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-    var co2 = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    var co2 = new ClipperLib.ClipperOffset(2, 0.03 * CLIP_ESC);
     co2.AddPaths(U2, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
     var sol2 = new ClipperLib.Paths();
     co2.Execute(sol2, 1.2 * CLIP_ESC); // borde de 1.2mm alrededor de las letras
-    sol2 = ClipperLib.Clipper.CleanPolygons(sol2.filter(function(p){ return ClipperLib.Clipper.Area(p) > 0 && p.length > 2; }), 0.1 * CLIP_ESC);
+    sol2 = ClipperLib.Clipper.CleanPolygons(sol2.filter(function(p){ return ClipperLib.Clipper.Area(p) > 0 && p.length > 2; }), 0.05 * CLIP_ESC);
     plateShapes = sol2.map(function(p){
       return new THREE.Shape(p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }));
     });
@@ -628,7 +628,7 @@ function construir(){
     cB.AddPaths(toClip(ringsP), ClipperLib.PolyType.ptSubject, true);
     var UB = new ClipperLib.Paths();
     cB.Execute(ClipperLib.ClipType.ctUnion, UB, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-    var coB = new ClipperLib.ClipperOffset(2, 0.25 * CLIP_ESC);
+    var coB = new ClipperLib.ClipperOffset(2, 0.03 * CLIP_ESC);
     coB.AddPaths(UB, ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
     var EB = new ClipperLib.Paths();
     coB.Execute(EB, -bw * CLIP_ESC);
