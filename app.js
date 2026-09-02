@@ -321,7 +321,7 @@ var ADORNOS_BASE = [
   { nombre:"Puntos y rombo", grosor:2.4, trazos:["M14 50 L86 50"],
     paths:["M42 50 L50 43 L58 50 L50 57 Z","M17 50 C17 48.3 18.3 47 20 47 C21.7 47 23 48.3 23 50 C23 51.7 21.7 53 20 53 C18.3 53 17 51.7 17 50 Z","M77 50 C77 48.3 78.3 47 80 47 C81.7 47 83 48.3 83 50 C83 51.7 81.7 53 80 53 C78.3 53 77 51.7 77 50 Z"] }
 ];
-var ADORNOS_LISTA = (window.ADORNOS_TRAZADOS || []).concat(ADORNOS_BASE);
+var ADORNOS_LISTA = (window.ADORNOS_TRAZADOS || []).slice(); // ADORNOS_BASE (viejos) ya no se muestran
 var ADORNO_SEL = null;
 
 // trazo abierto -> banda rellena (Clipper offset redondo sobre linea abierta)
