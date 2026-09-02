@@ -752,7 +752,7 @@ function pintarAdornos(){
   g.innerHTML = '<button class="mot' + (ADORNO_SEL === null ? " sel" : "") + '" data-i="-1" title="Sin adorno"><svg viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80" stroke="#ccc" stroke-width="6"/><line x1="80" y1="20" x2="20" y2="80" stroke="#ccc" stroke-width="6"/></svg><span>Ninguno</span></button>' +
     ADORNOS_LISTA.map(function(a, i){
       var sel = ADORNO_SEL === ADORNOS_LISTA[i];
-      var svg = (a.paths || []).map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("") +
+      var svg = (a.estilo === "linea" ? '<path d="' + (a.paths || []).join(" ") + '" fill="#9a3412" fill-rule="nonzero"/>' : (a.paths || []).map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("")) +
         (a.trazos || []).map(function(dd){ return '<path d="' + dd + '" fill="none" stroke="#9a3412" stroke-width="' + (a.grosor || 3) + '" stroke-linecap="round"/>'; }).join("");
       return '<button class="mot' + (sel ? " sel" : "") + '" data-i="' + i + '" title="' + a.nombre + '"><svg viewBox="0 0 100 100">' + svg + '</svg><span>' + a.nombre + '</span></button>';
     }).join("");
@@ -770,7 +770,7 @@ function pintarMotivos(){
     todos.map(function(m, i){
       var sel = MOTIVO_SEL === todos[i];
       return '<button class="mot' + (sel ? " sel" : "") + '" data-i="' + i + '" title="' + (m.tema ? m.tema + " · " : "") + m.nombre + '"><svg viewBox="0 0 100 100">' +
-        m.paths.map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("") +
+        (m.estilo === "linea" ? '<path d="' + m.paths.join(" ") + '" fill="#9a3412" fill-rule="nonzero"/>' : m.paths.map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("")) +
         (m.detalles || []).map(function(dd){ return '<path d="' + dd + '" fill="#fff"/>'; }).join("") + '</svg><span>' + m.nombre + '</span></button>';
     }).join("");
   document.querySelectorAll("#gridMotivos .mot").forEach(function(b){
