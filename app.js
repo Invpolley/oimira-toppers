@@ -381,11 +381,13 @@ function construir(){
     var mb = shapesBBox(raw);
     var mw = Math.max(mb.max.x - mb.min.x, 1), mh = Math.max(mb.max.y - mb.min.y, 1);
     var pctM = Math.max(30, Math.min(300, Number(($("#motTam") || {}).value) || 100)) / 100;
-    var target = Math.max(maxW * 0.45, SIZE * 1.2) * pctM;
+    // proporcion: el motivo acompaña al texto, no lo domina (≈42% del ancho, tope de alto 2.3 lineas)
+    var target = Math.max(maxW * 0.42, SIZE * 1.0) * pctM;
     var k = target / mw;
+    if (mh * k > SIZE * 2.3 * pctM) k = SIZE * 2.3 * pctM / mh;
     var mcx = (mb.min.x + mb.max.x) / 2;
     var motArriba = !document.getElementById("motPos") || $("#motPos").value !== "abajo";
-    var gapM = SIZE * 0.45, cyM;
+    var gapM = SIZE * 0.3, cyM;
     if (motArriba){ cyM = topStack + mh * k * 0.5 + gapM; topStack += mh * k + gapM; }
     else { cyM = botStack - mh * k * 0.5 - gapM; botStack -= mh * k + gapM; }
     var rotM = (Number((document.getElementById("motRot") || {}).value) || 0) * Math.PI / 180;
@@ -407,8 +409,8 @@ function construir(){
       var abb = shapesBBox(rawA);
       var aw2 = Math.max(abb.max.x - abb.min.x, 1), ah2 = Math.max(abb.max.y - abb.min.y, 1);
       var pctA = Math.max(30, Math.min(300, Number(($("#adTam") || {}).value) || 100)) / 100;
-      var ka = Math.max(maxW * 0.38, SIZE * 1.1) / aw2;
-      if (ah2 * ka > SIZE * 1.05) ka = SIZE * 1.05 / ah2; // que no domine el diseño
+      var ka = Math.max(maxW * 0.55, SIZE * 1.3) / aw2; // adorno con presencia (≈55% del ancho)
+      if (ah2 * ka > SIZE * 0.95) ka = SIZE * 0.95 / ah2; // que no domine el diseño
       ka *= pctA;
       var acx2 = (abb.min.x + abb.max.x) / 2;
       var adAbajo = !document.getElementById("adPos") || $("#adPos").value !== "arriba";
@@ -491,7 +493,7 @@ function construir(){
   // --- placa ---
   var plateShapes, bordeBase = null;
   if (forma === "contorno"){
-    var margen = Math.max(3, anchoMm * 0.032);
+    var margen = Math.max(2.4, anchoMm * 0.024); // placa mas ceñida = look delicado
     var puentes = barrasConectoras(); // sustentan motivo y adorno con un cuello solido
     plateShapes = contornoShapes(textMm.concat(motMm).concat(adMm).concat(puentes), margen) || [];
     if (!plateShapes.length) forma = "ovalo";
