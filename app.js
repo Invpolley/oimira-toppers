@@ -381,10 +381,10 @@ function construir(){
     var mb = shapesBBox(raw);
     var mw = Math.max(mb.max.x - mb.min.x, 1), mh = Math.max(mb.max.y - mb.min.y, 1);
     var pctM = Math.max(30, Math.min(300, Number(($("#motTam") || {}).value) || 100)) / 100;
-    // proporcion: el motivo acompaña al texto, no lo domina (≈42% del ancho, tope de alto 2.3 lineas)
-    var target = Math.max(maxW * 0.42, SIZE * 1.0) * pctM;
+    // proporcion: el motivo acompaña al texto, no lo domina (≈50% del ancho, tope de alto 3 lineas)
+    var target = Math.max(maxW * 0.5, SIZE * 1.2) * pctM;
     var k = target / mw;
-    if (mh * k > SIZE * 2.3 * pctM) k = SIZE * 2.3 * pctM / mh;
+    if (mh * k > SIZE * 3.0 * pctM) k = SIZE * 3.0 * pctM / mh;
     var mcx = (mb.min.x + mb.max.x) / 2;
     var motArriba = !document.getElementById("motPos") || $("#motPos").value !== "abajo";
     var gapM = SIZE * 0.3, cyM;
