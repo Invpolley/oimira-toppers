@@ -154,7 +154,8 @@
         <div class="canvas-tip">Arrastra el motivo o adorno para moverlo · arrastra el fondo para girar</div>
       </div>
       <div class="quickbar">
-        <button class="quick" id="btnDeshacer" disabled>↶ Deshacer</button>
+        <button class="quick" id="btnDeshacer" disabled title="Ctrl+Z">↶ Deshacer</button>
+        <button class="quick" id="btnRehacer" disabled title="Ctrl+Y">↷ Rehacer</button>
         <button class="quick" id="btnFrontal">Vista frontal</button>
         <button class="quick" id="btnCentrar" title="Volver motivo y adorno al centro">↺ Centrar</button>
         <button class="quick" id="btnUniones">Comprobar uniones</button>
@@ -326,7 +327,7 @@
 <script src="motivos-pro-data.js?v=2"></script>
 <script src="adornos-data.js?v=3"></script>
 <script src="modelos-data.js?v=1"></script>
-<script src="app.js?v=28"></script>
+<script src="app.js?v=29"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=1").catch(()=>{}));
 </script>

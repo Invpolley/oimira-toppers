@@ -1326,7 +1326,11 @@ document.querySelectorAll("#colChips .collection").forEach(function(b){
 });
 
 /* ================= Deshacer ================= */
-var HISTORIAL = [], HIST_MAX = 30, HIST_MUTE = false;
+var HISTORIAL = [], REHACER = [], HIST_MAX = 30, HIST_MUTE = false;
+function botonesHistorial(){
+  var bd = document.getElementById("btnDeshacer"); if (bd) bd.disabled = HISTORIAL.length < 2;
+  var br = document.getElementById("btnRehacer"); if (br) br.disabled = !REHACER.length;
+}
 function registrarEstado(forzar){
   if (HIST_MUTE) return;
   var o = estadoDiseno(); o.motivo = o.motivo ? { nombre: o.motivo.nombre } : null; o.adorno = o.adorno ? { nombre: o.adorno.nombre } : null;
@@ -1334,20 +1338,40 @@ function registrarEstado(forzar){
   if (!forzar && HISTORIAL.length && HISTORIAL[HISTORIAL.length - 1] === j) return;
   HISTORIAL.push(j);
   if (HISTORIAL.length > HIST_MAX) HISTORIAL.shift();
-  var bd = document.getElementById("btnDeshacer"); if (bd) bd.disabled = HISTORIAL.length < 2;
+  REHACER = []; // un cambio nuevo borra lo que se podia rehacer
+  botonesHistorial();
 }
-document.getElementById("btnDeshacer").onclick = function(){
-  if (HISTORIAL.length < 2) return;
-  HISTORIAL.pop();
-  var o = JSON.parse(HISTORIAL[HISTORIAL.length - 1]);
+function aplicarEstadoGuardado(j){
+  var o = JSON.parse(j);
   o.motivo = o.motivo ? buscarMotivo(o.motivo.nombre) : null;
   o.adorno = o.adorno ? buscarAdorno(o.adorno.nombre) : null;
   HIST_MUTE = true;
   aplicarDiseno(o);
   setTimeout(function(){ HIST_MUTE = false; }, 600);
-  var bd = document.getElementById("btnDeshacer"); bd.disabled = HISTORIAL.length < 2;
+  var mn = document.getElementById("modeloNombre"); if (mn) mn.textContent = MODELO_SEL ? MODELO_SEL.nombre : "Diseño libre";
+  botonesHistorial();
+}
+document.getElementById("btnDeshacer").onclick = function(){
+  if (HISTORIAL.length < 2) return;
+  REHACER.push(HISTORIAL.pop());
+  aplicarEstadoGuardado(HISTORIAL[HISTORIAL.length - 1]);
   actualizarEstado("Deshecho");
 };
+document.getElementById("btnRehacer").onclick = function(){
+  if (!REHACER.length) return;
+  var j = REHACER.pop();
+  HISTORIAL.push(j);
+  aplicarEstadoGuardado(j);
+  actualizarEstado("Rehecho");
+};
+document.addEventListener("keydown", function(e){
+  if (!(e.ctrlKey || e.metaKey)) return;
+  var t = e.target, escribiendo = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT");
+  if (escribiendo) return;
+  var k = e.key.toLowerCase();
+  if (k === "z" && !e.shiftKey){ e.preventDefault(); document.getElementById("btnDeshacer").click(); }
+  else if (k === "y" || (k === "z" && e.shiftKey)){ e.preventDefault(); document.getElementById("btnRehacer").click(); }
+});
 
 /* ================= Encuadre y vista frontal ================= */
 function encuadrar(){
