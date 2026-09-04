@@ -4,7 +4,7 @@ var $ = function(s){ return document.querySelector(s); };
 document.getElementById("ver").textContent = C.APP_VERSION;
 
 /* ================= Biblioteca de motivos (siempre imprimen bien) ================= */
-var BIBLIOTECA = window.MOTIVOS_TRAZADOS || [];
+var BIBLIOTECA = (window.MOTIVOS_PRO || []).concat(window.MOTIVOS_TRAZADOS || []);
 
 /* ================= Estado ================= */
 var FUENTES = {}; // nombre -> opentype.Font
@@ -16,11 +16,14 @@ var AD_OFF = { x: 0, y: 0 };     // desplazamiento del adorno
 var ULT_ESC = 1;                 // ultima escala mm/unidad (para convertir el arrastre)
 var MESH_MOT = null, MESH_AD = null;
 var renderTimer = null;
+var MODELO_SEL = null;       // modelo profesional de partida (modelos-data.js)
+var COL_SEL = null;          // coleccion elegida
+var EXPORTADO = false;
 
 function msgEl(id, t, err){ var el = $("#" + id); el.textContent = t || ""; el.className = "msg " + (err ? "err" : "ok"); }
 
 /* ================= Cargar fuentes ================= */
-var FUENTE_URLS = { greatvibes:"fonts/GreatVibes-Regular.ttf", pacifico:"fonts/Pacifico-Regular.ttf", poppins:"fonts/Poppins-SemiBold.ttf" };
+var FUENTE_URLS = { greatvibes:"fonts/GreatVibes-Regular.ttf", pacifico:"fonts/Pacifico-Regular.ttf", poppins:"fonts/Poppins-SemiBold.ttf", fredoka:"fonts/Fredoka-SemiBold.ttf", baloo:"fonts/Baloo2-Bold.ttf" };
 function cargarFuente(key){
   if (FUENTES[key]) return Promise.resolve(FUENTES[key]);
   return new Promise(function(res, rej){
@@ -151,8 +154,32 @@ function ringsDeSvg(paths){
   });
   return rings;
 }
+// Motivo PRO por capas: devuelve [{color, shapes}] respetando el orden de apilado
+function esFondo(d){ // path que cubre casi todo el viewBox 100x100 = fondo del sticker, no se imprime
+  var nums = d.match(/-?\d+(?:\.\d+)?/g); if (!nums || nums.length < 8) return false;
+  var x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for (var i = 0; i + 1 < nums.length; i += 2){ var x = +nums[i], y = +nums[i + 1]; if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return (x1 - x0) >= 90 && (y1 - y0) >= 90;
+}
+function motivoCapasShapes(m){
+  return (m.capas || []).map(function(capa){
+    var rings = ringsDeSvg(capa.paths.filter(function(d){ return !esFondo(d); }));
+    var subj = toClip(rings);
+    var c = new ClipperLib.Clipper();
+    c.AddPaths(subj, ClipperLib.PolyType.ptSubject, true);
+    var tree = new ClipperLib.PolyTree();
+    c.Execute(ClipperLib.ClipType.ctUnion, tree, ClipperLib.PolyFillType.pftEvenOdd, ClipperLib.PolyFillType.pftEvenOdd);
+    return { color: capa.color, shapes: treeToShapes(tree) };
+  }).filter(function(c){ return c.shapes.length; });
+}
 // motivo segun estilo: con detalles (huecos), solido, o delineado (anillo de linea)
 function motivoShapes(m){
+  if (m.capas){
+    // para bbox/medidas: union de todas las capas
+    var all = [];
+    motivoCapasShapes(m).forEach(function(c){ all = all.concat(c.shapes); });
+    return all;
+  }
   var estiloEl = document.getElementById("estiloMot");
   var estilo = estiloEl ? estiloEl.value : "detalles";
   var base = ringsDeSvg(m.paths);
@@ -363,18 +390,46 @@ function construir(){
     var w = font.getAdvanceWidth(t, SIZE);
     medidas.push(w); if (w > maxW) maxW = w;
   });
+  var arcoSel = document.getElementById("arco");
+  var arcoAng = arcoSel ? Number(arcoSel.value) : 0; // grados totales del arco (0 = recto)
   lineas.forEach(function(t, i){
     var w = medidas[i];
-    // por GLIFO (no por linea): evita rellenos rotos en fuentes script con trazos superpuestos
-    var gps = font.getPaths(t, -w / 2, yCursor, SIZE);
-    gps.forEach(function(gp){ otPathToShapes(gp).forEach(function(s){ textShapes.push(s); }); });
+    // Curva: la primera linea va en arco iris (puntas abajo) y la ultima en sonrisa (puntas arriba); las del medio rectas
+    var modoArco = arcoAng > 4 && t.length > 1 ? (i === 0 ? -1 : i === lineas.length - 1 ? 1 : 0) : 0;
+    if (modoArco !== 0){
+      var angTot = arcoAng * Math.PI / 180;
+      var R = w / angTot;
+      var avance = 0, base = -yCursor;                    // y-arriba (otPathToShapes invierte la y)
+      for (var ci = 0; ci < t.length; ci++){
+        var ch = t[ci];
+        var cw2 = font.getAdvanceWidth(ch, SIZE);
+        var tMid = (avance + cw2 / 2 - w / 2) / w;       // -0.5..0.5
+        var th = tMid * angTot;                            // angulo del glifo sobre el arco
+        var gx = R * Math.sin(th);
+        var gy = base + modoArco * R * (1 - Math.cos(th));  // -1: puntas bajan (arco iris) · +1: puntas suben (sonrisa)
+        var rot = modoArco * th;                           // el glifo sigue la tangente del arco
+        var gp2 = font.getPath(ch, 0, 0, SIZE);
+        var cosT = Math.cos(rot), sinT = Math.sin(rot);
+        otPathToShapes(gp2).forEach(function(s){
+          textShapes.push(bakeShape2(s, function(px, py){
+            var lx = px - cw2 / 2, ly = py;                 // centrar glifo (py ya viene en y-arriba)
+            return [lx * cosT - ly * sinT + gx, lx * sinT + ly * cosT + gy];
+          }));
+        });
+        avance += cw2;
+      }
+    } else {
+      // por GLIFO (no por linea): evita rellenos rotos en fuentes script con trazos superpuestos
+      var gps = font.getPaths(t, -w / 2, yCursor, SIZE);
+      gps.forEach(function(gp){ otPathToShapes(gp).forEach(function(s){ textShapes.push(s); }); });
+    }
     yCursor += LH;
   });
   // bbox del texto
   var tb = textShapes.length ? shapesBBox(textShapes) : new THREE.Box2(new THREE.Vector2(-1,-1), new THREE.Vector2(1,1));
 
   // --- motivo (arriba o abajo, tamaño ajustable) ---
-  var motShapes = [];
+  var motShapes = [], motCapasT = null;
   var topStack = tb.max.y, botStack = tb.min.y; // pilas para apilar motivo/adorno
   if (MOTIVO_SEL){
     var raw = motivoShapes(MOTIVO_SEL);
@@ -392,12 +447,17 @@ function construir(){
     else { cyM = botStack - mh * k * 0.5 - gapM; botStack -= mh * k + gapM; }
     var rotM = (Number((document.getElementById("motRot") || {}).value) || 0) * Math.PI / 180;
     var cosM = Math.cos(rotM), sinM = Math.sin(rotM), mcy = (mb.min.y + mb.max.y) / 2;
-    raw.forEach(function(s){
-      motShapes.push(bakeShape2(s, function(px, py){
-        var x0 = (px - mcx) * k, y0 = (py - mcy) * -k; // centrado + flip svg
-        return [x0 * cosM - y0 * sinM + MOT_OFF.x, x0 * sinM + y0 * cosM + cyM + MOT_OFF.y];
-      }));
-    });
+    var trMot = function(px, py){
+      var x0 = (px - mcx) * k, y0 = (py - mcy) * -k; // centrado + flip svg
+      return [x0 * cosM - y0 * sinM + MOT_OFF.x, x0 * sinM + y0 * cosM + cyM + MOT_OFF.y];
+    };
+    raw.forEach(function(s){ motShapes.push(bakeShape2(s, trMot)); });
+    // Motivo PRO: guardar las capas transformadas con su color
+    if (MOTIVO_SEL.capas){
+      motCapasT = motivoCapasShapes(MOTIVO_SEL).map(function(c){
+        return { color: c.color, shapes: c.shapes.map(function(s){ return bakeShape2(s, trMot); }) };
+      });
+    }
   }
 
   // --- adorno caligrafico debajo del texto ---
@@ -453,6 +513,7 @@ function construir(){
     });
   }
   var textMm = T(textShapes), motMm = T(motShapes), adMm = T(adShapes);
+  var capasMm = motCapasT ? motCapasT.map(function(c){ return { color: c.color, shapes: T(c.shapes) }; }) : null;
   ULT_ESC = esc;
   var plateWmm = plateW * esc, plateHmm = plateH * esc;
 
@@ -479,19 +540,20 @@ function construir(){
       var hw2 = Math.min(lineInfo[i].hw, lineInfo[i + 1].hw) * 0.55;
       [-hw2, hw2].forEach(function(px){ bars.push(barra(px - 1.3, lineInfo[i + 1].base, px + 1.3, lineInfo[i].base)); });
     }
-    var tTop = (tb.max.y - ccy) * esc, tBot = (tb.min.y - ccy) * esc;
+    var tTop = (tb.max.y - ccy) * esc, tBot = (tb.min.y - ccy) * esc, lhMm = LH * esc;
     [motMm, adMm].forEach(function(arr){
       if (!arr.length || !textMm.length) return;
       var eb = shapesBBox(arr), ecx = (eb.min.x + eb.max.x) / 2, ecy = (eb.min.y + eb.max.y) / 2;
-      if (ecy > tTop) bars.push(barra(ecx - 1.2, tTop - 2, ecx + 1.2, ecy));
-      else if (ecy < tBot) bars.push(barra(ecx - 1.2, ecy, ecx + 1.2, tBot + 2));
+      // el puente entra medio renglon dentro del texto: asi toca letras bajas (x-height) aunque el borde del bloque lo marque una mayuscula
+      if (ecy > tTop) bars.push(barra(ecx - 1.2, tTop - lhMm * 0.55, ecx + 1.2, ecy));
+      else if (ecy < tBot) bars.push(barra(ecx - 1.2, ecy, ecx + 1.2, tBot + lhMm * 0.55));
       else bars.push(barra(Math.min(ecx, 0) - 1.2, ecy - 1.2, Math.max(ecx, 0) + 1.2, ecy + 1.2)); // al costado: puente horizontal
     });
     return bars;
   }
 
   // --- placa ---
-  var plateShapes, bordeBase = null;
+  var plateShapes, bordeBase = null, nPal = 0;
   if (forma === "contorno"){
     var margen = Math.max(2.4, anchoMm * 0.024); // placa mas ceñida = look delicado
     var puentes = barrasConectoras(); // sustentan motivo y adorno con un cuello solido
@@ -513,7 +575,7 @@ function construir(){
           st.moveTo(px - pwc / 2, fy + 7); st.lineTo(px + pwc / 2, fy + 7);
           st.lineTo(px + pwc / 2, fy - plc + 4); st.lineTo(px, fy - plc);
           st.lineTo(px - pwc / 2, fy - plc + 4); st.closePath();
-          plateShapes.push(st);
+          plateShapes.push(st); nPal++;
         });
       }
     }
@@ -544,7 +606,7 @@ function construir(){
         if (arr.length){ var eb2 = shapesBBox(arr); if (eb2.min.y < topP - 3) topP = eb2.min.y + 2; }
       });
       var pxs = last.hw > 16 ? [-last.hw * 0.5, last.hw * 0.5] : [0];
-      pxs.forEach(function(px){ plateShapes.push(palito(px, topP, plL)); });
+      pxs.forEach(function(px){ plateShapes.push(palito(px, topP, plL)); nPal++; });
     }
     var bb4 = shapesBBox(plateShapes);
     plateWmm = bb4.max.x - bb4.min.x; plateHmm = bb4.max.y - bb4.min.y;
@@ -567,7 +629,7 @@ function construir(){
       var plA = Number($("#palLen").value) || 45;
       [-R * 0.35, R * 0.35].forEach(function(px){
         var top = -Math.sqrt(Math.max(0, R * R - px * px)) + 7;
-        plateShapes.push(palito(px, top, plA));
+        plateShapes.push(palito(px, top, plA)); nPal++;
       });
     }
     plateWmm = 2 * R; plateHmm = 2 * R;
@@ -598,7 +660,7 @@ function construir(){
       st.lineTo(px, yBottom - pl); // punta
       st.lineTo(px - pw / 2, yBottom - pl + 4);
       st.closePath();
-      plateShapes.push(st);
+      plateShapes.push(st); nPal++;
     });
   }
   }
@@ -616,7 +678,7 @@ function construir(){
   var gMot = extr(motMm, dRel); if (gMot && !fullDepth) gMot.translate(0, 0, grosor);
   var gAd = extr(adMm, dRel); if (gAd && !fullDepth) gAd.translate(0, 0, grosor);
   // --- borde de color siguiendo la silueta de la placa ---
-  var gBorde = null;
+  var gBorde = null, bordeShapes = [];
   var bordeChk = document.getElementById("bordeOn");
   if (bordeChk && bordeChk.checked && plateShapes.length){
     var bw = Math.max(1.8, anchoMm * 0.016);
@@ -639,11 +701,25 @@ function construir(){
     cB2.AddPaths(EB, ClipperLib.PolyType.ptClip, true);
     var treeB = new ClipperLib.PolyTree();
     cB2.Execute(ClipperLib.ClipType.ctDifference, treeB, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
-    var bordeShapes = treeToShapes(treeB);
+    bordeShapes = treeToShapes(treeB);
     gBorde = extr(bordeShapes, relieve);
     if (gBorde) gBorde.translate(0, 0, grosor);
   }
-  return { placa: gPlaca, texto: gTexto, motivo: gMot, adorno: gAd, borde: gBorde, anchoMm: anchoMm, altoMm: plateHmm };
+  // Motivo PRO: capas apiladas (0.45mm cada una) para relieve tipo sticker
+  var gCapas = null;
+  if (capasMm){
+    gMot = null; // el motivo plano se reemplaza por las capas
+    var stepH = 0.45;
+    gCapas = [];
+    capasMm.forEach(function(c, i){
+      var g = extr(c.shapes, stepH + 0.02);
+      if (g){ g.translate(0, 0, grosor + i * stepH); gCapas.push({ geo: g, color: c.color }); }
+    });
+  }
+  // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
+  var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal };
+  return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
+           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2 };
 }
 
 /* ================= Vista previa 3D ================= */
@@ -660,7 +736,7 @@ var dl2 = new THREE.DirectionalLight(0xffffff, 0.3); dl2.position.set(-60, 40, 6
 var grupo = new THREE.Group(); scene.add(grupo);
 
 function tamCanvas(){
-  var w = canvas.clientWidth || canvas.parentElement.clientWidth, h = 440;
+  var w = canvas.clientWidth || canvas.parentElement.clientWidth, h = canvas.clientHeight || 480;
   renderer.setSize(w, h, false);
   cam.aspect = w / h; cam.updateProjectionMatrix();
 }
@@ -680,9 +756,21 @@ function refrescar(){
   }
   add(b.placa, $("#c1").value);
   add(b.texto, $("#c2").value);
-  MESH_MOT = add(b.motivo, $("#c3").value);
+  if (b.motivoCapas){
+    var gr = new THREE.Group();
+    b.motivoCapas.forEach(function(c){
+      gr.add(new THREE.Mesh(c.geo, new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.55, metalness: 0.05 })));
+    });
+    grupo.add(gr);
+    MESH_MOT = gr;
+  } else {
+    MESH_MOT = add(b.motivo, $("#c3").value);
+  }
   MESH_AD = add(b.adorno, $("#c4").value);
   add(b.borde, $("#c5").value);
+  var med = document.getElementById("medidaTxt");
+  if (med) med.textContent = b.anchoMm + " × " + b.altoMm + " mm";
+  var um = document.getElementById("unionesMsg"); if (um){ um.textContent = ""; um.className = "unionesMsg"; }
 }
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
@@ -738,8 +826,8 @@ document.getElementById("btnCentrar").onclick = function(){
   refrescar();
 };
 
-function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(refrescar, 350); }
-["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
+function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(function(){ refrescar(); registrarEstado(); pintarPasos(); }, 350); }
+["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
@@ -769,9 +857,10 @@ function pintarMotivos(){
   $("#gridMotivos").innerHTML = '<button class="mot' + (MOTIVO_SEL === null ? " sel" : "") + '" data-i="-1" title="Sin motivo"><svg viewBox="0 0 100 100"><line x1="20" y1="20" x2="80" y2="80" stroke="#ccc" stroke-width="6"/><line x1="80" y1="20" x2="20" y2="80" stroke="#ccc" stroke-width="6"/></svg><span>Ninguno</span></button>' +
     todos.map(function(m, i){
       var sel = MOTIVO_SEL === todos[i];
+      var svgM = m.capas ? m.capas.map(function(c){ return c.paths.map(function(dd){ return '<path d="' + dd + '" fill="' + c.color + '" fill-rule="evenodd"/>'; }).join(""); }).join("") : null;
       return '<button class="mot' + (sel ? " sel" : "") + '" data-i="' + i + '" title="' + (m.tema ? m.tema + " · " : "") + m.nombre + '"><svg viewBox="0 0 100 100">' +
-        (m.estilo === "linea" ? '<path d="' + m.paths.join(" ") + '" fill="#9a3412" fill-rule="nonzero"/>' : m.paths.map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("")) +
-        (m.detalles || []).map(function(dd){ return '<path d="' + dd + '" fill="#fff"/>'; }).join("") + '</svg><span>' + m.nombre + '</span></button>';
+        (svgM ? svgM : m.estilo === "linea" ? '<path d="' + m.paths.join(" ") + '" fill="#9a3412" fill-rule="nonzero"/>' : m.paths.map(function(dd){ return '<path d="' + dd + '" fill="#9a3412"/>'; }).join("")) +
+        (svgM ? "" : (m.detalles || []).map(function(dd){ return '<path d="' + dd + '" fill="#fff"/>'; }).join("")) + '</svg><span>' + m.nombre + '</span></button>';
     }).join("");
   document.querySelectorAll("#gridMotivos .mot").forEach(function(b){
     b.onclick = function(){
@@ -867,10 +956,21 @@ function geoXml(geo, id, pindex, nombre){
 }
 function construir3mf(){
   var colores = [$("#c1").value, $("#c2").value, $("#c3").value, $("#c4").value, $("#c5").value];
+  // Capas del motivo PRO: cada capa agrega su propio color a la paleta
+  if (GEOS.motivoCapas) GEOS.motivoCapas.forEach(function(c){ colores.push(c.color); });
   var partes = [], items = [], objInfo = [], id = 2;
   [["placa","Placa",0],["texto","Texto",1],["motivo","Motivo",2],["adorno","Adorno",3],["borde","Borde",4]].forEach(function(p){
     if (GEOS[p[0]]){ partes.push(geoXml(GEOS[p[0]], id, p[2], p[1])); items.push('<item objectid="'+id+'"/>'); objInfo.push({ id: id, nombre: p[1], ext: p[2] + 1 }); id++; }
   });
+  if (GEOS.motivoCapas){
+    GEOS.motivoCapas.forEach(function(c, i){
+      var matIdx = 5 + i; // despues de las 5 partes fijas
+      partes.push(geoXml(c.geo, id, matIdx, "Motivo capa " + (i+1)));
+      items.push('<item objectid="'+id+'"/>');
+      objInfo.push({ id: id, nombre: "Motivo capa " + (i+1) + " (" + c.color + ")", ext: matIdx + 1 });
+      id++;
+    });
+  }
   var model = '<?xml version="1.0" encoding="UTF-8"?>' +
     '<model unit="millimeter" xml:lang="es" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">' +
     '<resources><m:basematerials id="1">' + colores.map(function(c,i){ return '<m:base name="Color '+(i+1)+'" displaycolor="'+c+'FF"/>'; }).join("") + '</m:basematerials>' +
@@ -898,7 +998,7 @@ $("#btn3mf").onclick = async function(){
   if (!GEOS || !GEOS.placa) return msgEl("dlMsg", "Escribe al menos una línea de texto.", true);
   msgEl("dlMsg", "Generando 3MF…");
   var blob = await construir3mf();
-  descargar(blob, nombreArchivo(".3mf"));
+  descargar(blob, nombreArchivo(".3mf")); EXPORTADO = true;
   msgEl("dlMsg", "✅ 3MF descargado (" + GEOS.anchoMm + " mm de ancho). Ábrelo en Bambu Studio.");
 };
 $("#btnStl").onclick = async function(){
@@ -909,8 +1009,11 @@ $("#btnStl").onclick = async function(){
   [["placa","1-placa"],["texto","2-texto"],["motivo","3-motivo"],["adorno","4-adorno"],["borde","5-borde"]].forEach(function(p){
     if (GEOS[p[0]]) zip.file(p[1] + ".stl", stlBinario(GEOS[p[0]]));
   });
+  if (GEOS.motivoCapas) GEOS.motivoCapas.forEach(function(c, i){
+    zip.file("3-motivo-capa" + (i+1) + "-" + c.color.replace("#","") + ".stl", stlBinario(c.geo));
+  });
   var blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
-  descargar(blob, nombreArchivo("-stl.zip"));
+  descargar(blob, nombreArchivo("-stl.zip")); EXPORTADO = true;
   msgEl("dlMsg", "✅ ZIP con STLs por color descargado. Impórtalos juntos en Bambu Studio (como un objeto).");
 };
 
@@ -945,7 +1048,8 @@ function pintarSwatches(){
     var cont = document.querySelector('.sw[data-for="' + p[0] + '"]');
     if (!cont) return;
     var cur = $("#" + p[0]).value.toLowerCase();
-    cont.innerHTML = FILAMENTOS.map(function(f){
+    var enPaleta = FILAMENTOS.some(function(f){ return f.c.toLowerCase() === cur; });
+    cont.innerHTML = (enPaleta ? "" : '<button type="button" class="swb sel" data-c="' + cur + '" title="Color del modelo (no está en tus filamentos)" style="background:' + cur + ';border-style:dashed"></button>') + FILAMENTOS.map(function(f){
       return '<button type="button" class="swb' + (f.c.toLowerCase() === cur ? " sel" : "") + '" data-c="' + f.c + '" title="' + f.n + '" style="background:' + f.c + '"></button>';
     }).join("");
     cont.querySelectorAll(".swb").forEach(function(b){
@@ -994,19 +1098,21 @@ document.getElementById("btnAddFil").onclick = async function(){
 /* ================= Bocetos por cliente (guardar / continuar) ================= */
 var BOCETO = null; // { id, cliente, telefono } del boceto abierto
 function estadoDiseno(){
-  var ids = ["l1","l2","l3","fuente","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","c1","c2","c3","c4","c5"];
+  var ids = ["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","c1","c2","c3","c4","c5"];
   var o = { campos: {} };
   ids.forEach(function(id){ var el = document.getElementById(id); if (el) o.campos[id] = el.value; });
   o.palitos = $("#palitos").checked;
   o.bordeOn = document.getElementById("bordeOn") ? $("#bordeOn").checked : false;
-  o.motivo = MOTIVO_SEL ? { nombre: MOTIVO_SEL.nombre, tema: MOTIVO_SEL.tema || null, paths: MOTIVO_SEL.paths, detalles: MOTIVO_SEL.detalles || null } : null;
-  o.adorno = ADORNO_SEL ? { nombre: ADORNO_SEL.nombre, paths: ADORNO_SEL.paths || null, trazos: ADORNO_SEL.trazos || null, grosor: ADORNO_SEL.grosor || null } : null;
+  o.motivo = MOTIVO_SEL ? { nombre: MOTIVO_SEL.nombre, tema: MOTIVO_SEL.tema || null, estilo: MOTIVO_SEL.estilo || null, paths: MOTIVO_SEL.paths || null, detalles: MOTIVO_SEL.detalles || null, capas: MOTIVO_SEL.capas || null } : null;
+  o.modelo = MODELO_SEL ? MODELO_SEL.id : null;
+  o.adorno = ADORNO_SEL ? { nombre: ADORNO_SEL.nombre, estilo: ADORNO_SEL.estilo || null, paths: ADORNO_SEL.paths || null, trazos: ADORNO_SEL.trazos || null, grosor: ADORNO_SEL.grosor || null } : null;
   o.motOff = { x: MOT_OFF.x, y: MOT_OFF.y };
   o.adOff = { x: AD_OFF.x, y: AD_OFF.y };
   return o;
 }
-function aplicarDiseno(o){
+function aplicarDiseno(o, sinRefrescar){
   Object.keys(o.campos || {}).forEach(function(id){ var el = document.getElementById(id); if (el) el.value = o.campos[id]; });
+  if (o.modelo !== undefined){ MODELO_SEL = (window.MODELOS || []).filter(function(m){ return m.id === o.modelo; })[0] || null; }
   $("#palitos").checked = !!o.palitos;
   if (document.getElementById("bordeOn")) $("#bordeOn").checked = !!o.bordeOn;
   MOTIVO_SEL = o.motivo || null;
@@ -1023,7 +1129,8 @@ function aplicarDiseno(o){
   MOT_OFF.x = (o.motOff || {}).x || 0; MOT_OFF.y = (o.motOff || {}).y || 0;
   AD_OFF.x = (o.adOff || {}).x || 0; AD_OFF.y = (o.adOff || {}).y || 0;
   guardarColores();
-  pintarMotivos(); pintarAdornos();
+  if (sinRefrescar) return;
+  pintarMotivos(); pintarAdornos(); pintarSwatches(); pintarModelos();
   cargarFuente($("#fuente").value).then(function(){ refrescar(); }).catch(function(){ refrescar(); });
 }
 document.getElementById("btnGuardarBoc").onclick = async function(){
@@ -1051,7 +1158,7 @@ document.getElementById("btnGuardarBoc").onclick = async function(){
       var fila = (await r2.json())[0];
       BOCETO = { id: fila.id, cliente: fila.cliente, telefono: fila.telefono };
     }
-    msgEl("bocMsg", "✅ Boceto guardado para " + BOCETO.cliente + " (" + BOCETO.telefono + ").");
+    msgEl("bocMsg", "✅ Boceto guardado para " + BOCETO.cliente + " (" + BOCETO.telefono + ")."); actualizarEstado();
   } catch (e){ msgEl("bocMsg", "No se pudo guardar. Revisa la conexion.", true); }
 };
 document.getElementById("btnAbrirBoc").onclick = async function(){
@@ -1075,6 +1182,8 @@ document.getElementById("btnAbrirBoc").onclick = async function(){
     var b = lista[idx];
     BOCETO = { id: b.id, cliente: b.cliente, telefono: b.telefono };
     aplicarDiseno(b.diseno);
+    if (MODELO_SEL){ COL_SEL = MODELO_SEL.col; document.getElementById("modeloNombre").textContent = MODELO_SEL.nombre; } else document.getElementById("modeloNombre").textContent = "Diseño libre";
+    pintarColecciones(); pintarModelos(); registrarEstado(true); actualizarEstado();
     msgEl("bocMsg", "✅ Boceto de " + b.cliente + " abierto — al guardar se actualiza este mismo.");
   } catch (e){ msgEl("bocMsg", "No se pudo buscar. Revisa la conexion.", true); }
 };
@@ -1108,9 +1217,217 @@ document.getElementById("btnMail").onclick = async function(){
   finally { btn.disabled = false; }
 };
 
+
+/* ================= Colecciones y modelos profesionales ================= */
+var MINIS = {};   // id modelo -> svg de miniatura (se calcula con el motor real)
+function buscarMotivo(nombre){ return nombre ? (BIBLIOTECA.filter(function(m){ return m.nombre === nombre; })[0] || null) : null; }
+function buscarAdorno(nombre){ return nombre ? (ADORNOS_LISTA.filter(function(a){ return a.nombre === nombre; })[0] || null) : null; }
+function disenoDeModelo(m){
+  var campos = Object.assign({}, m.campos, { motRot: "0", adRot: "0", c1: m.colores[0], c2: m.colores[1], c3: m.colores[2], c4: m.colores[3], c5: m.colores[4] });
+  return { campos: campos, palitos: m.palitos !== false, bordeOn: !!m.bordeOn,
+           motivo: buscarMotivo(m.motivo), adorno: buscarAdorno(m.adorno), motOff: { x: 0, y: 0 }, adOff: { x: 0, y: 0 }, modelo: m.id };
+}
+// SVG 2D de las piezas construidas (mismo motor que el 3D)
+function svgDe2D(d2, cols){
+  function area(r){ var a = 0; for (var i = 0; i < r.length; i++){ var p = r[i], q = r[(i + 1) % r.length]; a += p.x * q.y - q.x * p.y; } return a / 2; }
+  function pathD(shapes){
+    return shapes.map(function(s){
+      var pts = s.extractPoints(8);
+      function ring(r, quiero){ if ((area(r) > 0) !== quiero) r = r.slice().reverse(); return "M" + r.map(function(p){ return p.x.toFixed(1) + " " + (-p.y).toFixed(1); }).join("L") + "Z"; }
+      return ring(pts.shape, true) + (pts.holes || []).map(function(h){ return ring(h, false); }).join("");
+    }).join("");
+  }
+  var cont = d2.texto.concat(d2.motivo, d2.adorno);
+  if (!cont.length) return "";
+  var cuerpo = d2.placa.slice(0, Math.max(1, d2.placa.length - (d2.nPalitos || 0)));
+  var bb = shapesBBox(cont), bp = shapesBBox(cuerpo);
+  bb.min.x = Math.min(bb.min.x, bp.min.x); bb.max.x = Math.max(bb.max.x, bp.max.x);
+  bb.max.y = Math.max(bb.max.y, bp.max.y); bb.min.y = Math.max(bb.min.y - 7, bp.min.y);
+  var w = bb.max.x - bb.min.x, h = bb.max.y - bb.min.y, pad = 4;
+  var vb = (bb.min.x - pad).toFixed(1) + " " + (-bb.max.y - pad).toFixed(1) + " " + (w + 2 * pad).toFixed(1) + " " + (h + 2 * pad).toFixed(1);
+  var out = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="' + vb + '" preserveAspectRatio="xMidYMid meet">';
+  out += '<path d="' + pathD(d2.placa) + '" fill="' + cols[0] + '" stroke="#00000022" stroke-width="0.6" fill-rule="nonzero"/>';
+  out += '<path d="' + pathD(d2.borde) + '" fill="' + cols[4] + '" fill-rule="evenodd"/>';
+  out += '<path d="' + pathD(d2.texto) + '" fill="' + cols[1] + '" fill-rule="evenodd"/>';
+  if (d2.capas) d2.capas.forEach(function(c){ out += '<path d="' + pathD(c.shapes) + '" fill="' + c.color + '" fill-rule="evenodd"/>'; });
+  else out += '<path d="' + pathD(d2.motivo) + '" fill="' + cols[2] + '" fill-rule="evenodd"/>';
+  out += '<path d="' + pathD(d2.adorno) + '" fill="' + cols[3] + '" fill-rule="evenodd"/>';
+  return out + "</svg>";
+}
+// miniatura de un modelo: aplica el modelo en silencio, construye en 2D y restaura el diseño actual
+function miniaturaModelo(m){
+  if (MINIS[m.id]) return MINIS[m.id];
+  var antes = estadoDiseno(), motAntes = MOTIVO_SEL, adAntes = ADORNO_SEL, modAntes = MODELO_SEL, iaAntes = MOTIVOS_IA;
+  try {
+    aplicarDiseno(disenoDeModelo(m), true);
+    var b = construir();
+    if (b && b.d2) MINIS[m.id] = svgDe2D(b.d2, m.colores);
+  } catch (e) {}
+  aplicarDiseno(antes, true);
+  MOTIVO_SEL = motAntes; ADORNO_SEL = adAntes; MODELO_SEL = modAntes; MOTIVOS_IA = iaAntes;
+  return MINIS[m.id] || "";
+}
+function pintarColecciones(){
+  document.querySelectorAll("#colChips .collection").forEach(function(b){
+    b.classList.toggle("selected", b.dataset.col === COL_SEL);
+  });
+  var pista = document.getElementById("colPista");
+  if (pista){
+    var c = COL_SEL && window.COLECCIONES ? COLECCIONES[COL_SEL] : null;
+    pista.innerHTML = c ? "<b>" + c.familia + "</b><br>" + c.desc : "Toca una colección para ver sus modelos, o empieza en blanco desde <b>Personalizar</b>.";
+  }
+}
+function pintarModelos(){
+  var g = document.getElementById("gridModelos");
+  if (!g) return;
+  var lista = (window.MODELOS || []).filter(function(m){ return !COL_SEL || m.col === COL_SEL; });
+  g.innerHTML = lista.map(function(m){
+    var mini = MINIS[m.id];
+    return '<button class="template' + (MODELO_SEL && MODELO_SEL.id === m.id ? " selected" : "") + '" data-id="' + m.id + '" title="' + m.ocasion + '">' +
+      (mini ? mini : '<div class="ph"></div>') + '<span>' + m.nombre + '</span></button>';
+  }).join("");
+  g.querySelectorAll(".template").forEach(function(b){
+    b.onclick = function(){ var m = MODELOS.filter(function(x){ return x.id === b.dataset.id; })[0]; if (m) aplicarModelo(m); };
+  });
+  pintarPasos();
+}
+var MINI_PEND = false;
+function calcularMiniaturas(){
+  if (MINI_PEND) return;
+  var faltan = (window.MODELOS || []).filter(function(m){ return !MINIS[m.id] && (!COL_SEL || m.col === COL_SEL); });
+  if (!faltan.length) return;
+  var fuentesOk = faltan.every(function(m){ return FUENTES[m.campos.fuente]; });
+  if (!fuentesOk) return; // se reintenta cuando terminen de cargar las fuentes
+  MINI_PEND = true;
+  var i = 0;
+  (function paso(){
+    if (i >= faltan.length){ MINI_PEND = false; pintarModelos(); return; }
+    miniaturaModelo(faltan[i]); i++;
+    if (i % 3 === 0) pintarModelos();
+    setTimeout(paso, 16);
+  })();
+}
+function aplicarModelo(m){
+  COL_SEL = m.col;
+  aplicarDiseno(disenoDeModelo(m));
+  MODELO_SEL = m;
+  BOCETO = null;
+  var mn = document.getElementById("modeloNombre"); if (mn) mn.textContent = m.nombre;
+  pintarColecciones(); pintarModelos(); pintarSwatches();
+  registrarEstado(true);
+  actualizarEstado("Modelo " + m.nombre);
+  setTimeout(encuadrar, 60);
+}
+document.querySelectorAll("#colChips .collection").forEach(function(b){
+  b.onclick = function(){
+    COL_SEL = COL_SEL === b.dataset.col ? null : b.dataset.col;
+    pintarColecciones(); pintarModelos(); calcularMiniaturas();
+  };
+});
+
+/* ================= Deshacer ================= */
+var HISTORIAL = [], HIST_MAX = 30, HIST_MUTE = false;
+function registrarEstado(forzar){
+  if (HIST_MUTE) return;
+  var o = estadoDiseno(); o.motivo = o.motivo ? { nombre: o.motivo.nombre } : null; o.adorno = o.adorno ? { nombre: o.adorno.nombre } : null;
+  var j = JSON.stringify(o);
+  if (!forzar && HISTORIAL.length && HISTORIAL[HISTORIAL.length - 1] === j) return;
+  HISTORIAL.push(j);
+  if (HISTORIAL.length > HIST_MAX) HISTORIAL.shift();
+  var bd = document.getElementById("btnDeshacer"); if (bd) bd.disabled = HISTORIAL.length < 2;
+}
+document.getElementById("btnDeshacer").onclick = function(){
+  if (HISTORIAL.length < 2) return;
+  HISTORIAL.pop();
+  var o = JSON.parse(HISTORIAL[HISTORIAL.length - 1]);
+  o.motivo = o.motivo ? buscarMotivo(o.motivo.nombre) : null;
+  o.adorno = o.adorno ? buscarAdorno(o.adorno.nombre) : null;
+  HIST_MUTE = true;
+  aplicarDiseno(o);
+  setTimeout(function(){ HIST_MUTE = false; }, 600);
+  var bd = document.getElementById("btnDeshacer"); bd.disabled = HISTORIAL.length < 2;
+  actualizarEstado("Deshecho");
+};
+
+/* ================= Encuadre y vista frontal ================= */
+function encuadrar(){
+  var d = Math.max(170, (GEOS ? Math.max(GEOS.anchoMm, GEOS.altoMm) : 140) * 1.45);
+  cam.position.set(0, -d * 0.55, d * 0.9); controls.target.set(0, 0, 0); controls.update();
+}
+document.getElementById("btnFrontal").onclick = function(){
+  var d = Math.max(160, (GEOS ? Math.max(GEOS.anchoMm, GEOS.altoMm) : 140) * 1.55);
+  cam.position.set(0, -d * 0.12, d); controls.target.set(0, 0, 0); controls.update();
+};
+
+/* ================= Comprobar uniones (una sola pieza) ================= */
+function comprobarUniones(){
+  if (!GEOS || !GEOS.d2) return { ok: false, n: 0, txt: "Escribe al menos una línea de texto." };
+  var d2 = GEOS.d2, rings = [];
+  function agregar(shapes){ shapes.forEach(function(s){ var p = s.extractPoints(6); if (p.shape.length > 2) rings.push(p.shape); }); }
+  function orientar(paths){ paths.forEach(function(p){ if (!ClipperLib.Clipper.Orientation(p)) p.reverse(); }); return paths; }
+  agregar(d2.placa); agregar(d2.texto); agregar(d2.motivo); agregar(d2.adorno);
+  if (d2.capas) d2.capas.forEach(function(c){ agregar(c.shapes); });
+  if (!rings.length) return { ok: false, n: 0, txt: "Nada que comprobar." };
+  var c = new ClipperLib.Clipper();
+  c.AddPaths(orientar(toClip(rings)), ClipperLib.PolyType.ptSubject, true);
+  var sol = new ClipperLib.Paths();
+  c.Execute(ClipperLib.ClipType.ctUnion, sol, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
+  var islas = sol.filter(function(p){ return ClipperLib.Clipper.Area(p) > 4 * CLIP_ESC * CLIP_ESC; }); // islas de mas de 4 mm2
+  var n = islas.length;
+  if (n <= 1) return { ok: true, n: n, txt: "✓ Una sola pieza: todo queda unido, lista para imprimir." };
+  return { ok: false, n: n, txt: "⚠ Hay " + n + " piezas sueltas (revisa puntos de íes, tildes o figuras separadas). Acerca el motivo o el adorno al texto, agrándalos un poco o usa la placa «Contorno del texto»." };
+}
+document.getElementById("btnUniones").onclick = function(){
+  refrescar();
+  var r = comprobarUniones(), el = document.getElementById("unionesMsg");
+  el.textContent = r.txt; el.className = "unionesMsg " + (r.ok ? "ok" : "warn");
+};
+
+/* ================= Revisar y exportar ================= */
+function abrirExportar(){
+  refrescar();
+  var modal = document.getElementById("modalExp");
+  var res = document.getElementById("expResumen");
+  if (!GEOS || !GEOS.placa){ res.innerHTML = "Escribe al menos una línea de texto para poder exportar."; }
+  else {
+    var cols = ["c1","c2","c3","c4","c5"].map(function(id){ return $("#" + id).value; });
+    var partes = [["Placa", !!GEOS.placa, cols[0]], ["Texto", !!GEOS.texto, cols[1]], ["Figura", !!(GEOS.motivo || GEOS.motivoCapas), cols[2]], ["Adorno", !!GEOS.adorno, cols[3]], ["Borde", !!GEOS.borde, cols[4]]].filter(function(p){ return p[1]; });
+    var nCol = GEOS.motivoCapas ? partes.length - 1 + GEOS.motivoCapas.length : partes.length;
+    var lineas = ["l1","l2","l3"].map(function(id){ return $("#" + id).value.trim(); }).filter(Boolean).join(" · ");
+    res.innerHTML = "<b>" + (MODELO_SEL ? MODELO_SEL.nombre : "Diseño libre") + "</b> — " + lineas +
+      "<br>Medidas: <b>" + GEOS.anchoMm + " × " + GEOS.altoMm + " mm</b> · grosor " + $("#grosor").value + " mm · relieve " + $("#relieve").value + " mm" +
+      "<br>Piezas: " + partes.map(function(p){ return p[0]; }).join(", ") + (GEOS.motivoCapas ? " (figura en " + GEOS.motivoCapas.length + " capas)" : "") +
+      "<br>Colores: <span class=\"pal\">" + partes.map(function(p){ return '<i style="background:' + p[2] + '" title="' + p[0] + '"></i>'; }).join("") + "</span> " + nCol + " filamento" + (nCol === 1 ? "" : "s") +
+      ($("#palitos").checked ? "<br>Palitos integrados de " + $("#palLen").value + " mm" : "<br>Sin palitos");
+  }
+  var r = comprobarUniones(), eu = document.getElementById("expUniones");
+  eu.textContent = GEOS && GEOS.placa ? r.txt : ""; eu.className = "unionesMsg " + (r.ok ? "ok" : "warn");
+  msgEl("dlMsg", "");
+  modal.classList.add("on");
+  pintarPasos(4);
+}
+document.getElementById("btnExportar").onclick = abrirExportar;
+document.getElementById("btnExportar2").onclick = abrirExportar;
+document.getElementById("btnCerrarExp").onclick = function(){ document.getElementById("modalExp").classList.remove("on"); pintarPasos(); };
+document.getElementById("modalExp").addEventListener("click", function(e){ if (e.target === this){ this.classList.remove("on"); pintarPasos(); } });
+
+/* ================= Pasos y estado ================= */
+function pintarPasos(activo){
+  var paso = activo || (EXPORTADO ? 4 : MODELO_SEL ? 3 : COL_SEL ? 2 : 1);
+  document.querySelectorAll("#pasos [data-p]").forEach(function(el){
+    var p = Number(el.dataset.p);
+    el.className = p === paso ? "on" : p < paso ? "done" : "";
+  });
+}
+function actualizarEstado(txt){
+  var el = document.getElementById("estadoTxt"); if (!el) return;
+  var boc = BOCETO ? "Boceto de " + BOCETO.cliente : (txt || "Nuevo diseño");
+  el.innerHTML = boc + " · <b>Vista 3D</b>";
+}
+
 /* ================= Arranque ================= */
 (async function init(){
-  tamCanvas(); loop(); pintarMotivos(); pintarAdornos();
+  tamCanvas(); loop(); pintarMotivos(); pintarAdornos(); pintarColecciones(); pintarModelos(); pintarPasos();
   try {
     var sc = JSON.parse(localStorage.getItem("tp_colores"));
     if (sc) PARTES_COLOR.forEach(function(p){ if (sc[p[0]]) $("#" + p[0]).value = sc[p[0]]; });
@@ -1118,8 +1435,13 @@ document.getElementById("btnMail").onclick = async function(){
   } catch (e) {}
   pintarSwatches(); cargarFilamentos();
   try { await cargarFuente("greatvibes"); } catch (e) {}
-  ["pacifico","poppins"].forEach(function(k){ cargarFuente(k).catch(function(){}); });
   $("#fuente").addEventListener("change", function(){ cargarFuente($("#fuente").value).then(programarRefresco); });
-  MOTIVO_SEL = BIBLIOTECA[0]; pintarMotivos();
-  refrescar();
+  // arranque con el primer modelo de la coleccion Elegante
+  var m0 = (window.MODELOS || [])[0];
+  if (m0){ COL_SEL = m0.col; MODELO_SEL = m0; aplicarDiseno(disenoDeModelo(m0), true); MODELO_SEL = m0; document.getElementById("modeloNombre").textContent = m0.nombre; }
+  else MOTIVO_SEL = BIBLIOTECA[0];
+  pintarMotivos(); pintarAdornos(); pintarSwatches(); pintarColecciones(); pintarModelos();
+  refrescar(); encuadrar(); registrarEstado(true); actualizarEstado(m0 ? "Modelo " + m0.nombre : null); pintarPasos();
+  // el resto de fuentes en segundo plano; cuando esten todas, se calculan las miniaturas de los modelos
+  Promise.all(["pacifico","poppins","fredoka","baloo"].map(function(k){ return cargarFuente(k).catch(function(){}); })).then(function(){ calcularMiniaturas(); });
 })();

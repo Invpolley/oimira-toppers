@@ -1,5 +1,5 @@
 // OiMira Toppers — SW "shell siempre desde la red"
-const CACHE = "toppers-v7";
+const CACHE = "toppers-v8";
 const ESTATICOS = ["./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ESTATICOS).catch(() => {})));
