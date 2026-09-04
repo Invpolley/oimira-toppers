@@ -109,6 +109,41 @@
   .pal{display:inline-flex;gap:4px;vertical-align:middle}
   .pal i{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid #00000022}
   .foot{color:var(--muted2);font-size:10.5px;text-align:center;padding:10px}
+  /* ---- asistente guiado ---- */
+  .btn-guia{border:1px solid var(--brand);background:var(--brand-l);color:var(--brand-d);border-radius:20px;padding:7px 12px;font-size:12px;font-weight:600;white-space:nowrap}
+  .more .btn-guia{white-space:normal;line-height:1.3;max-width:100%}
+  .btn-guia:hover{background:var(--brand);color:#fff}
+  .topbar-der{display:flex;align-items:center;gap:12px}
+  .guia{position:fixed;inset:0;z-index:60;background:rgba(38,33,29,.5);display:none;align-items:center;justify-content:center;padding:12px}
+  .guia.on{display:flex}
+  .guia-caja{background:#fff;border-radius:22px;width:100%;max-width:720px;max-height:94vh;display:flex;flex-direction:column;box-shadow:0 22px 60px rgba(50,38,28,.28);overflow:hidden}
+  .guia-cab{display:flex;align-items:center;justify-content:space-between;padding:14px 20px 8px;gap:10px}
+  .guia-cab .puntos{display:flex;gap:6px}
+  .guia-cab .puntos i{width:22px;height:5px;border-radius:3px;background:var(--line)}
+  .guia-cab .puntos i.on{background:var(--brand)} .guia-cab .puntos i.done{background:#e0b8c0}
+  .guia-cab button{border:0;background:none;color:var(--muted);font-size:12px}
+  .guia-cuerpo{padding:6px 20px 12px;overflow:auto;flex:1}
+  .guia-cuerpo h2{font-family:var(--serif);font-size:22px;margin:4px 0 4px}
+  .guia-cuerpo p.sub{margin:0 0 12px;color:var(--muted);font-size:12.5px}
+  .tarjetas{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+  .tarjeta{border:1.5px solid var(--line);border-radius:14px;background:#faf8f5;padding:12px 10px;text-align:center;color:var(--txt);font-size:12.5px;display:flex;flex-direction:column;align-items:center;gap:6px;min-height:76px;justify-content:center}
+  .tarjeta .ic{font-size:24px;line-height:1}
+  .tarjeta.sel{border-color:var(--brand);background:var(--brand-l2);box-shadow:0 0 0 2px var(--brand-l)}
+  .tarjeta small{color:var(--muted2);font-size:10.5px}
+  .tarjeta svg{width:100%;height:60px}
+  .tarjeta.sug::after{content:"Sugerido";font-size:9.5px;color:var(--brand-d);background:var(--brand-l);border-radius:10px;padding:2px 7px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin:6px 0 12px}
+  .chip{border:1.5px solid var(--line);border-radius:20px;background:#fff;padding:8px 13px;font-size:13px;color:var(--txt)}
+  .chip.sel{border-color:var(--brand);background:var(--brand-l2);color:var(--brand-d);font-weight:600}
+  .guia-libre{display:flex;gap:8px;align-items:center;margin-top:4px}
+  .guia-libre input{flex:1}
+  .guia-pie{display:flex;justify-content:space-between;gap:10px;padding:12px 20px 16px;border-top:1px solid var(--line);background:#fff}
+  .guia-pie .der{display:flex;gap:8px}
+  .paleta-card{display:flex;gap:5px;justify-content:center}
+  .paleta-card i{width:22px;height:22px;border-radius:50%;border:1px solid #00000022;display:inline-block}
+  .guia-resumen{background:var(--stage);border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.7}
+  .guia-resumen b{font-weight:600}
+  @media(max-width:560px){ .tarjetas{grid-template-columns:repeat(2,1fr)} .guia{padding:0} .guia-caja{border-radius:0;max-height:100vh;height:100vh} }
   @media(max-width:980px){
     .workbench{grid-template-columns:1fr}
     .panel.left{border-right:0;border-bottom:1px solid var(--line)}
@@ -127,7 +162,10 @@
 <div class="app">
   <div class="topbar">
     <div class="logo">OiMira<span>.</span><small>Estudio de toppers</small></div>
-    <div class="estado" id="estadoTxt">Nuevo diseño · <b>Vista 3D</b></div>
+    <div class="topbar-der">
+      <div class="estado" id="estadoTxt">Nuevo diseño · <b>Vista 3D</b></div>
+      <button class="btn-guia" id="btnGuia" title="Asistente paso a paso">✨ Guíame</button>
+    </div>
   </div>
 
   <div class="workbench">
@@ -141,6 +179,7 @@
       </div>
       <div class="template-grid" id="gridModelos"></div>
       <div class="more" id="colPista">Toca una colección para ver sus modelos, o empieza en blanco desde <b>Personalizar</b>.</div>
+      <div class="more" style="margin-top:14px"><button class="btn-guia" id="btnGuia2">✨ ¿No sabes por dónde empezar? Guíame</button></div>
     </aside>
 
     <!-- ================= 3D ================= -->
@@ -316,6 +355,24 @@
   </div>
 </div>
 
+<!-- ================= Asistente guiado ================= -->
+<div class="guia" id="guia">
+  <div class="guia-caja">
+    <div class="guia-cab">
+      <div class="puntos" id="guiaPuntos"></div>
+      <button id="guiaCerrar">Salir del asistente ✕</button>
+    </div>
+    <div class="guia-cuerpo" id="guiaCuerpo"></div>
+    <div class="guia-pie">
+      <button class="btn sec2" id="guiaAtras" style="width:auto">← Atrás</button>
+      <div class="der">
+        <button class="btn sec2" id="guiaOmitir" style="width:auto">Omitir</button>
+        <button class="btn" id="guiaSig" style="width:auto;min-width:150px">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="config.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -326,8 +383,8 @@
 <script src="motivos-data.js?v=4"></script>
 <script src="motivos-pro-data.js?v=2"></script>
 <script src="adornos-data.js?v=3"></script>
-<script src="modelos-data.js?v=1"></script>
-<script src="app.js?v=29"></script>
+<script src="modelos-data.js?v=2"></script>
+<script src="app.js?v=30"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>navigator.serviceWorker.register("sw.js?v=1").catch(()=>{}));
 </script>

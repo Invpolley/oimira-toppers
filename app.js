@@ -1449,6 +1449,137 @@ function actualizarEstado(txt){
   el.innerHTML = boc + " · <b>Vista 3D</b>";
 }
 
+
+/* ================= Asistente guiado (para quien no sabe por donde empezar) ================= */
+var W = null; // estado del asistente
+var GUIA_PASOS = ["ocasion","quien","frase","estilo","figura","colores","listo"];
+function svgMotivo(m){
+  if (!m) return "";
+  var inner = m.capas ? m.capas.map(function(c){ return c.paths.filter(function(d){ return !esFondo(d); }).map(function(dd){ return '<path d="' + dd + '" fill="' + c.color + '" fill-rule="evenodd"/>'; }).join(""); }).join("")
+    : (m.estilo === "linea" ? '<path d="' + m.paths.join(" ") + '" fill="#4a3f38" fill-rule="nonzero"/>' : m.paths.map(function(dd){ return '<path d="' + dd + '" fill="#4a3f38"/>'; }).join("") + (m.detalles || []).map(function(dd){ return '<path d="' + dd + '" fill="#fff"/>'; }).join(""));
+  return '<svg viewBox="0 0 100 100">' + inner + '</svg>';
+}
+function ocasionActual(){ return ASISTENTE.ocasiones.filter(function(o){ return o.id === W.ocasion; })[0] || ASISTENTE.ocasiones[ASISTENTE.ocasiones.length - 1]; }
+function fraseConNumero(f){ return f.replace("{n}", W.numero || "").replace(/\s+/g, " ").trim(); }
+function guiaAbrir(){
+  W = { paso: 0, ocasion: null, nombre: "", numero: "", frase: "", estilo: null, motivo: undefined, paleta: undefined };
+  document.getElementById("guia").classList.add("on");
+  guiaPintar();
+  try { localStorage.setItem("tp_guia_vista", "1"); } catch (e) {}
+}
+function guiaCerrar(){ document.getElementById("guia").classList.remove("on"); }
+function guiaPintar(){
+  var paso = GUIA_PASOS[W.paso], cuerpo = document.getElementById("guiaCuerpo");
+  document.getElementById("guiaPuntos").innerHTML = GUIA_PASOS.map(function(p, i){ return '<i class="' + (i === W.paso ? "on" : i < W.paso ? "done" : "") + '"></i>'; }).join("");
+  var atras = document.getElementById("guiaAtras"), omitir = document.getElementById("guiaOmitir"), sig = document.getElementById("guiaSig");
+  atras.style.visibility = W.paso === 0 ? "hidden" : "visible";
+  omitir.style.display = (paso === "ocasion" || paso === "listo") ? "none" : "";
+  sig.textContent = paso === "listo" ? "Abrir en el estudio ✨" : "Siguiente →";
+  sig.disabled = false;
+  var oc = W.ocasion ? ocasionActual() : null;
+  if (paso === "ocasion"){
+    cuerpo.innerHTML = '<h2>¿Para qué ocasión es el topper?</h2><p class="sub">Elige una; con eso te voy sugiriendo frases, figuras y colores. Después puedes cambiar todo.</p>' +
+      '<div class="tarjetas">' + ASISTENTE.ocasiones.map(function(o){ return '<button class="tarjeta' + (W.ocasion === o.id ? " sel" : "") + '" data-oc="' + o.id + '"><span class="ic">' + o.icono + '</span>' + o.nombre + '</button>'; }).join("") + '</div>';
+    cuerpo.querySelectorAll("[data-oc]").forEach(function(b){ b.onclick = function(){ W.ocasion = b.dataset.oc; W.frase = ""; W.motivo = undefined; W.estilo = null; guiaPintar(); }; });
+    sig.disabled = !W.ocasion;
+  }
+  else if (paso === "quien"){
+    cuerpo.innerHTML = '<h2>¿Para quién es?</h2><p class="sub">El nombre va en la segunda línea del topper. Si no quieres nombre, déjalo vacío.</p>' +
+      '<div class="row"><div class="field"><label>Nombre (opcional)</label><input id="gNombre" maxlength="30" placeholder="ej. Valentina" value="' + W.nombre.replace(/"/g, "&quot;") + '"></div>' +
+      '<div class="field" style="flex:0 0 150px"><label>Número / edad (opcional)</label><input id="gNumero" inputmode="numeric" maxlength="6" placeholder="ej. 15" value="' + W.numero + '"></div></div>' +
+      '<p class="sub">Con el número puedo sugerirte frases como «Felices ' + (W.numero || "7") + '».</p>';
+    var gn = document.getElementById("gNombre"), gu = document.getElementById("gNumero");
+    gn.oninput = function(){ W.nombre = gn.value; }; gu.oninput = function(){ W.numero = gu.value.replace(/[^0-9]/g, ""); };
+    setTimeout(function(){ gn.focus(); }, 50);
+  }
+  else if (paso === "frase"){
+    var frases = oc.frases.map(fraseConNumero).filter(function(f, i, a){ return f && a.indexOf(f) === i; });
+    var libre = W.frase && frases.indexOf(W.frase) < 0;
+    cuerpo.innerHTML = '<h2>¿Qué frase quieres?</h2><p class="sub">Toca una sugerencia o escribe la tuya. Máximo 30 letras por línea.</p>' +
+      '<div class="chips">' + frases.map(function(f){ return '<button class="chip' + (W.frase === f ? " sel" : "") + '" data-f="' + f.replace(/"/g, "&quot;") + '">' + f + '</button>'; }).join("") + '</div>' +
+      '<div class="guia-libre"><label style="margin:0;white-space:nowrap">O escribe la tuya</label><input id="gFrase" maxlength="30" placeholder="Tu frase…" value="' + (libre ? W.frase.replace(/"/g, "&quot;") : "") + '"></div>';
+    cuerpo.querySelectorAll("[data-f]").forEach(function(b){ b.onclick = function(){ W.frase = b.dataset.f; guiaPintar(); }; });
+    var gf = document.getElementById("gFrase");
+    gf.oninput = function(){ W.frase = gf.value; cuerpo.querySelectorAll(".chip").forEach(function(c){ c.classList.toggle("sel", c.dataset.f === W.frase); }); };
+    if (!W.frase) W.frase = frases[0] || "";
+    cuerpo.querySelectorAll(".chip").forEach(function(c){ c.classList.toggle("sel", c.dataset.f === W.frase); });
+  }
+  else if (paso === "estilo"){
+    if (!W.estilo) W.estilo = oc.estilo;
+    cuerpo.innerHTML = '<h2>¿Qué estilo va mejor?</h2><p class="sub">Cada estilo trae tipografía, figuras y colores propios. La vista es un ejemplo: tu texto y tus figuras irán ahí.</p>' +
+      '<div class="tarjetas" style="grid-template-columns:repeat(3,1fr)">' + ["elegante","moderna","creativa"].map(function(k){
+        var base = MODELOS.filter(function(m){ return m.id === oc.modelos[k]; })[0] || MODELOS.filter(function(m){ return m.col === k; })[0];
+        var mini = base ? (MINIS[base.id] || (FUENTES[base.campos.fuente] ? miniaturaModelo(base) : "")) : "";
+        return '<button class="tarjeta' + (W.estilo === k ? " sel" : "") + (oc.estilo === k ? " sug" : "") + '" data-est="' + k + '">' + (mini || '<div class="ph" style="height:60px;width:100%"></div>') + '<b>' + COLECCIONES[k].nombre + '</b><small>' + COLECCIONES[k].familia + '</small></button>';
+      }).join("") + '</div>';
+    cuerpo.querySelectorAll("[data-est]").forEach(function(b){ b.onclick = function(){ W.estilo = b.dataset.est; W.paleta = undefined; guiaPintar(); }; });
+  }
+  else if (paso === "figura"){
+    var sug = oc.motivos.map(buscarMotivo).filter(Boolean);
+    var otros = BIBLIOTECA.filter(function(m){ return sug.indexOf(m) < 0; });
+    if (W.motivo === undefined) W.motivo = sug[0] || null;
+    function tarjetaM(m){ return '<button class="tarjeta' + (W.motivo === m ? " sel" : "") + '" data-mot="' + m.nombre.replace(/"/g, "&quot;") + '">' + svgMotivo(m) + '<small>' + m.nombre + '</small></button>'; }
+    cuerpo.innerHTML = '<h2>¿Qué figura lo acompaña?</h2><p class="sub">Estas van bien con ' + oc.nombre.toLowerCase() + '. Abajo está toda la biblioteca, y en el estudio también puedes generar una con IA.</p>' +
+      '<div class="tarjetas">' + '<button class="tarjeta' + (W.motivo === null ? " sel" : "") + '" data-mot=""><span class="ic">✕</span>Sin figura</button>' + sug.map(tarjetaM).join("") + '</div>' +
+      '<details style="margin-top:12px"><summary style="cursor:pointer;color:var(--muted);font-size:12.5px">Ver toda la biblioteca (' + otros.length + ' más)</summary><div class="tarjetas" style="margin-top:8px">' + otros.map(tarjetaM).join("") + '</div></details>';
+    cuerpo.querySelectorAll("[data-mot]").forEach(function(b){ b.onclick = function(){ W.motivo = b.dataset.mot ? buscarMotivo(b.dataset.mot) : null; guiaPintar(); }; });
+  }
+  else if (paso === "colores"){
+    var pals = ASISTENTE.paletas[W.estilo] || [];
+    cuerpo.innerHTML = '<h2>¿Qué colores te gustan?</h2><p class="sub">Placa · texto · figura · adorno · borde. Son una propuesta: en el estudio eliges filamento por filamento.</p>' +
+      '<div class="tarjetas">' + '<button class="tarjeta' + (W.paleta === null ? " sel" : "") + '" data-pal="-1"><span class="ic">🎨</span>Los del modelo<small>decido después</small></button>' +
+      pals.map(function(pl, i){ return '<button class="tarjeta' + (W.paleta === i ? " sel" : "") + '" data-pal="' + i + '"><span class="paleta-card">' + pl.c.map(function(c){ return '<i style="background:' + c + '"></i>'; }).join("") + '</span>' + pl.n + '</button>'; }).join("") + '</div>';
+    if (W.paleta === undefined) W.paleta = null;
+    cuerpo.querySelectorAll("[data-pal]").forEach(function(b){ b.onclick = function(){ var i = Number(b.dataset.pal); W.paleta = i < 0 ? null : i; guiaPintar(); }; });
+    cuerpo.querySelectorAll("[data-pal]").forEach(function(b){ var i = Number(b.dataset.pal); b.classList.toggle("sel", (i < 0 && W.paleta === null) || i === W.paleta); });
+  }
+  else if (paso === "listo"){
+    var base = guiaModeloBase();
+    var pal = W.paleta != null ? ASISTENTE.paletas[W.estilo][W.paleta] : null;
+    cuerpo.innerHTML = '<h2>¡Listo! Así queda tu punto de partida</h2><p class="sub">Al abrirlo en el estudio puedes mover, cambiar tipografía, tamaño, colores y todo lo demás.</p>' +
+      '<div class="guia-resumen">Ocasión: <b>' + oc.nombre + '</b><br>Texto: <b>' + (W.frase || "(sin frase)") + (W.nombre ? " · " + W.nombre : "") + '</b><br>Estilo: <b>' + COLECCIONES[W.estilo].nombre + '</b> · modelo base <b>' + (base ? base.nombre : "—") + '</b><br>Figura: <b>' + (W.motivo ? W.motivo.nombre : "sin figura") + '</b><br>Colores: <b>' + (pal ? pal.n : "los del modelo") + '</b></div>';
+  }
+}
+function guiaModeloBase(){
+  var oc = ocasionActual();
+  return MODELOS.filter(function(m){ return m.id === oc.modelos[W.estilo]; })[0] || MODELOS.filter(function(m){ return m.col === W.estilo; })[0] || MODELOS[0];
+}
+function guiaTerminar(){
+  var base = guiaModeloBase(), d = disenoDeModelo(base);
+  d.campos.l1 = (W.frase || d.campos.l1).slice(0, 30);
+  d.campos.l2 = (W.nombre || "").slice(0, 30);
+  d.campos.l3 = "";
+  d.motivo = W.motivo === undefined ? d.motivo : W.motivo;
+  if (W.paleta != null){ var pal = ASISTENTE.paletas[W.estilo][W.paleta].c; d.campos.c1 = pal[0]; d.campos.c2 = pal[1]; d.campos.c3 = pal[2]; d.campos.c4 = pal[3]; d.campos.c5 = pal[4]; }
+  COL_SEL = W.estilo;
+  aplicarDiseno(d);
+  MODELO_SEL = base; BOCETO = null;
+  document.getElementById("modeloNombre").textContent = base.nombre + " · guiado";
+  pintarColecciones(); pintarModelos(); pintarSwatches(); calcularMiniaturas();
+  registrarEstado(true); actualizarEstado("Diseño guiado");
+  guiaCerrar();
+  setTimeout(encuadrar, 80);
+  setTimeout(function(){ var um = document.getElementById("unionesMsg"); if (um){ um.textContent = "✨ Tu diseño está montado. Ajusta lo que quieras en Personalizar y luego Revisar y exportar."; um.className = "unionesMsg ok"; } }, 900);
+}
+document.getElementById("btnGuia").onclick = guiaAbrir;
+document.getElementById("btnGuia2").onclick = guiaAbrir;
+document.getElementById("guiaCerrar").onclick = guiaCerrar;
+document.getElementById("guiaAtras").onclick = function(){ if (W.paso > 0){ W.paso--; guiaPintar(); } };
+document.getElementById("guiaOmitir").onclick = function(){
+  var paso = GUIA_PASOS[W.paso];
+  if (paso === "quien"){ W.nombre = ""; W.numero = ""; }
+  if (paso === "figura") W.motivo = undefined;   // se queda la figura del modelo base
+  if (paso === "colores") W.paleta = null;
+  W.paso++; guiaPintar();
+};
+document.getElementById("guiaSig").onclick = function(){
+  var paso = GUIA_PASOS[W.paso];
+  if (paso === "ocasion" && !W.ocasion) return;
+  if (paso === "listo"){ guiaTerminar(); return; }
+  W.paso++; guiaPintar();
+};
+document.getElementById("guia").addEventListener("keydown", function(e){ if (e.key === "Escape") guiaCerrar(); });
+
 /* ================= Arranque ================= */
 (async function init(){
   tamCanvas(); loop(); pintarMotivos(); pintarAdornos(); pintarColecciones(); pintarModelos(); pintarPasos();
@@ -1468,4 +1599,6 @@ function actualizarEstado(txt){
   refrescar(); encuadrar(); registrarEstado(true); actualizarEstado(m0 ? "Modelo " + m0.nombre : null); pintarPasos();
   // el resto de fuentes en segundo plano; cuando esten todas, se calculan las miniaturas de los modelos
   Promise.all(["pacifico","poppins","fredoka","baloo"].map(function(k){ return cargarFuente(k).catch(function(){}); })).then(function(){ calcularMiniaturas(); });
+  var primera = false; try { primera = !localStorage.getItem("tp_guia_vista"); } catch (e) {}
+  if (primera) setTimeout(guiaAbrir, 400);
 })();
