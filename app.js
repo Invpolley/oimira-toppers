@@ -1133,6 +1133,55 @@ function aplicarDiseno(o, sinRefrescar){
   pintarMotivos(); pintarAdornos(); pintarSwatches(); pintarModelos();
   cargarFuente($("#fuente").value).then(function(){ refrescar(); }).catch(function(){ refrescar(); });
 }
+/* 2026-09-24: bocetos sin señal. Si no hay internet el boceto queda en la cola del equipo (con su id ya
+   asignado para que reenviarlo no lo duplique) y se envía solo al volver la señal. */
+var COLA_BOC_KEY = "tp_cola_bocetos_v1";
+function colaBocLeer(){ try { return JSON.parse(localStorage.getItem(COLA_BOC_KEY) || "[]"); } catch (e) { return []; } }
+function colaBocEscribir(c){ try { localStorage.setItem(COLA_BOC_KEY, JSON.stringify(c)); } catch (e) {} }
+function uuidNuevo(){
+  if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c){ var r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
+}
+function colaBocAgregar(item){
+  var c = colaBocLeer(), prev = c.filter(function(x){ return x.id === item.id; })[0];
+  if (prev){ prev.diseno = item.diseno; prev.actualizado = item.actualizado; }  // si aún no se creó, sigue siendo "nuevo"
+  else c.push(item);
+  colaBocEscribir(c);
+}
+var _colaBocEnviando = false;
+async function colaBocEnviar(){
+  if (_colaBocEnviando || !navigator.onLine) return;
+  var c = colaBocLeer(); if (!c.length) return;
+  _colaBocEnviando = true; var enviados = 0;
+  try {
+    for (var i = 0; i < c.length; i++){
+      var it = c[i], ok = false;
+      try {
+        if (it.nuevo){
+          var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto", { method: "POST", headers: restHeaders(),
+            body: JSON.stringify({ id: it.id, cliente: it.cliente, telefono: it.telefono, diseno: it.diseno, actualizado: it.actualizado }) });
+          if (r.ok) ok = true;
+          else if (r.status === 409) it.nuevo = false;   // ya estaba creado: se actualiza abajo
+        }
+        if (!ok && !it.nuevo){
+          var r2 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + it.id, { method: "PATCH", headers: restHeaders(),
+            body: JSON.stringify({ diseno: it.diseno, actualizado: it.actualizado }) });
+          ok = r2.ok;
+        }
+      } catch (e) { break; }   // sin señal otra vez: se intenta después
+      if (!ok) break;
+      it._ok = true; enviados++;
+      if (BOCETO && BOCETO.id === it.id) delete BOCETO.pendiente;
+    }
+  } finally {
+    colaBocEscribir(colaBocLeer().filter(function(x){ return !c.some(function(y){ return y._ok && y.id === x.id && y.actualizado === x.actualizado; }); }));
+    _colaBocEnviando = false;
+  }
+  if (enviados) msgEl("bocMsg", "✅ Se enviaron " + enviados + " boceto(s) que estaban guardados en el equipo.");
+}
+window.addEventListener("online", colaBocEnviar);
+setInterval(colaBocEnviar, 60000);
+
 document.getElementById("btnGuardarBoc").onclick = async function(){
   var lineas = ["l1","l2","l3"].some(function(id){ return $("#" + id).value.trim(); });
   if (!lineas && !MOTIVO_SEL) return msgEl("bocMsg", "No hay nada que guardar todavia.", true);
@@ -1142,7 +1191,18 @@ document.getElementById("btnGuardarBoc").onclick = async function(){
   if (!tel || !tel.trim()) return;
   tel = tel.replace(/[^0-9+]/g, "");
   msgEl("bocMsg", "Guardando boceto…");
+  var nuevoId = (BOCETO && BOCETO.id) ? null : uuidNuevo();
+  var ahora = new Date().toISOString();
+  function aCola(){
+    if (!BOCETO) BOCETO = { id: nuevoId, cliente: nombre.trim(), telefono: tel, pendiente: true };
+    colaBocAgregar({ id: BOCETO.id, nuevo: !!nuevoId || !!BOCETO.pendiente, cliente: BOCETO.cliente, telefono: BOCETO.telefono, diseno: estadoDiseno(), actualizado: ahora });
+    guardarBorradorYa();
+    msgEl("bocMsg", "📴 Sin señal: el boceto de " + BOCETO.cliente + " quedó guardado en este equipo y se envía solo cuando vuelva internet.");
+    actualizarEstado();
+  }
+  if (!navigator.onLine) return aCola();
   try {
+    if (BOCETO && BOCETO.pendiente){ aCola(); colaBocEnviar(); return; }
     if (BOCETO && BOCETO.id){
       var r1 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + BOCETO.id, {
         method: "PATCH", headers: restHeaders(),
@@ -1152,14 +1212,18 @@ document.getElementById("btnGuardarBoc").onclick = async function(){
     } else {
       var r2 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto", {
         method: "POST", headers: Object.assign(restHeaders(), { Prefer: "return=representation" }),
-        body: JSON.stringify({ cliente: nombre.trim(), telefono: tel, diseno: estadoDiseno() }),
+        body: JSON.stringify({ id: nuevoId, cliente: nombre.trim(), telefono: tel, diseno: estadoDiseno() }),
       });
       if (!r2.ok) throw new Error("guardar");
       var fila = (await r2.json())[0];
       BOCETO = { id: fila.id, cliente: fila.cliente, telefono: fila.telefono };
     }
-    msgEl("bocMsg", "✅ Boceto guardado para " + BOCETO.cliente + " (" + BOCETO.telefono + ")."); actualizarEstado();
-  } catch (e){ msgEl("bocMsg", "No se pudo guardar. Revisa la conexion.", true); }
+    msgEl("bocMsg", "✅ Boceto guardado para " + BOCETO.cliente + " (" + BOCETO.telefono + ")."); actualizarEstado(); guardarBorradorYa();
+  } catch (e){
+    // Error de red (fetch lanza TypeError): a la cola. Otros errores del servidor: avisar.
+    if (e && e.name === "TypeError") return aCola();
+    msgEl("bocMsg", "No se pudo guardar (el servidor lo rechazó). Intenta de nuevo.", true);
+  }
 };
 document.getElementById("btnAbrirBoc").onclick = async function(){
   var tel = prompt("Telefono del cliente:");
@@ -1331,7 +1395,22 @@ function botonesHistorial(){
   var bd = document.getElementById("btnDeshacer"); if (bd) bd.disabled = HISTORIAL.length < 2;
   var br = document.getElementById("btnRehacer"); if (br) br.disabled = !REHACER.length;
 }
+/* 2026-09-24: borrador automático. El diseño que se está haciendo se guarda en el equipo con cada cambio y al
+   cerrar la app; al volver a abrirla se recupera (antes, al cerrar o recargar se perdía todo). */
+var BORRADOR_KEY = "tp_borrador_v1", _borradorT = null;
+function guardarBorradorYa(){
+  try { localStorage.setItem(BORRADOR_KEY, JSON.stringify({ t: Date.now(), diseno: estadoDiseno(), boceto: BOCETO,
+    modeloNombre: (document.getElementById("modeloNombre") || {}).textContent || "" })); } catch (e) {}
+}
+function guardarBorrador(){ clearTimeout(_borradorT); _borradorT = setTimeout(guardarBorradorYa, 400); }
+function leerBorrador(){ try { return JSON.parse(localStorage.getItem(BORRADOR_KEY) || "null"); } catch (e) { return null; } }
+window.addEventListener("pagehide", guardarBorradorYa);
+document.addEventListener("visibilitychange", function(){ if (document.visibilityState === "hidden") guardarBorradorYa(); });
+document.addEventListener("input", guardarBorrador, true);
+document.addEventListener("change", guardarBorrador, true);
+
 function registrarEstado(forzar){
+  guardarBorrador();
   if (HIST_MUTE) return;
   var o = estadoDiseno(); o.motivo = o.motivo ? { nombre: o.motivo.nombre } : null; o.adorno = o.adorno ? { nombre: o.adorno.nombre } : null;
   var j = JSON.stringify(o);
@@ -1596,7 +1675,22 @@ document.getElementById("guia").addEventListener("keydown", function(e){ if (e.k
   if (m0){ COL_SEL = m0.col; MODELO_SEL = m0; aplicarDiseno(disenoDeModelo(m0), true); MODELO_SEL = m0; document.getElementById("modeloNombre").textContent = m0.nombre; }
   else MOTIVO_SEL = BIBLIOTECA[0];
   pintarMotivos(); pintarAdornos(); pintarSwatches(); pintarColecciones(); pintarModelos();
-  refrescar(); encuadrar(); registrarEstado(true); actualizarEstado(m0 ? "Modelo " + m0.nombre : null); pintarPasos();
+  var borr = leerBorrador(), recuperado = false;
+  if (borr && borr.diseno && (Date.now() - borr.t) < 30 * 24 * 3600 * 1000){
+    var cp = borr.diseno.campos || {};
+    if ((cp.l1 || cp.l2 || cp.l3 || "").trim() || borr.diseno.motivo){
+      aplicarDiseno(borr.diseno, true);
+      BOCETO = borr.boceto || null;
+      if (MODELO_SEL) COL_SEL = MODELO_SEL.col;
+      if (borr.modeloNombre) document.getElementById("modeloNombre").textContent = borr.modeloNombre;
+      pintarMotivos(); pintarAdornos(); pintarSwatches(); pintarModelos();
+      try { await cargarFuente($("#fuente").value); } catch (e) {}
+      recuperado = true;
+    }
+  }
+  refrescar(); encuadrar(); registrarEstado(true);
+  actualizarEstado(recuperado ? "↩ Se recuperó el diseño que estabas haciendo" : (m0 ? "Modelo " + m0.nombre : null)); pintarPasos();
+  colaBocEnviar();
   // el resto de fuentes en segundo plano; cuando esten todas, se calculan las miniaturas de los modelos
   Promise.all(["pacifico","poppins","fredoka","baloo"].map(function(k){ return cargarFuente(k).catch(function(){}); })).then(function(){ calcularMiniaturas(); });
   var primera = false; try { primera = !localStorage.getItem("tp_guia_vista"); } catch (e) {}
