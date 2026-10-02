@@ -1,6 +1,6 @@
 // SW resiliente (PROTOCOLO PWA RESILIENTE, 2026-09-13). Network-first: guarda la cáscara para abrir sin internet
 // y NUNCA guarda ni muestra un 502/503/504 del hosting si hay copia buena. Datos (Supabase) nunca pasan por caché.
-const CACHE = "toppers-v13";
+const CACHE = "toppers-v14";
 const PREFIJO = "toppers"; // solo se borran cachés viejas de ESTA app (en GitHub Pages varias apps comparten origen)
 const ASSETS = ["./","./index.html","./app.js","./config.js","./manifest.json","./icons/icon-192.png","./icons/icon-512.png","./adornos-data.js","./modelos-data.js","./motivos-data.js","./motivos-pro-data.js"];
 
@@ -17,7 +17,8 @@ self.addEventListener("fetch", (e) => {
   if (e.request.method !== "GET" || url.hostname.endsWith("supabase.co")) return;
   if (url.searchParams.has("ping")) return; // chequeo de salud: debe llegar crudo al servidor
   e.respondWith(
-    fetch(e.request)
+    // GitHub Pages manda max-age=600: archivos propios siempre revalidados para que la versión nueva llegue al instante
+    fetch(url.origin === self.location.origin ? new Request(e.request, { cache: "no-cache" }) : e.request)
       .then((r) => {
         const buena = r.ok || r.type === "opaque"; // 200-299 u opaca (CDN). Un 5xx/403 del hosting NO es buena.
         if (buena) { const c = r.clone(); caches.open(CACHE).then((k) => k.put(e.request, c)); return r; }

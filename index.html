@@ -337,6 +337,7 @@
       </details>
 
       <div class="acciones">
+        <div id="cuentaBar" style="font-size:12.5px;margin-bottom:6px"></div>
         <div class="row">
           <button class="btn sec2" id="btnGuardarBoc">Guardar boceto</button>
           <button class="btn sec2" id="btnAbrirBoc">Abrir boceto</button>
@@ -400,7 +401,7 @@
 <script src="motivos-pro-data.js?v=2"></script>
 <script src="adornos-data.js?v=3"></script>
 <script src="modelos-data.js?v=2"></script>
-<script src="app.js?v=31"></script>
+<script src="app.js?v=32"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js?v=20260913").then(reg=>{ reg.update(); reg.addEventListener("updatefound",()=>{ const w=reg.installing; w&&w.addEventListener("statechange",()=>{ if(w.state==="activated"&&navigator.serviceWorker.controller) location.reload(); }); }); }).catch(()=>{}); });
 </script>

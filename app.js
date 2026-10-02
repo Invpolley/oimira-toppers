@@ -1026,7 +1026,155 @@ var FILAMENTOS = FIL_DEF.slice();
 var PIN_ADMIN = null;
 var PARTES_COLOR = [["c1","Placa"],["c2","Texto"],["c3","Motivo"],["c4","Adorno"],["c5","Borde"]];
 
-function restHeaders(){ return { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY }; }
+/* ================= CUENTAS (01/10/2026, pedido de Polley) =================
+   Clientes: entran con su CUENTA DE OIMIRA.COM (la misma para comprar en la página). Pueden mirar y diseñar sin cuenta;
+   para guardar o abrir sus bocetos entran o crean su cuenta. Cada boceto queda ligado a su cuenta (RLS por auth.uid()).
+   Personal OiMira: "🔐 Personal" con su PIN personal (dueño o permiso "Pedidos especiales y Toppers") → ve/guarda los
+   bocetos de todos (por teléfono) y edita filamentos. El token del personal va en el header x-sesion-token. */
+var CLI_KEY = "tp_cliente_v1", STF_KEY = "tp_personal_v1";
+function leerJSON(k){ try { return JSON.parse(localStorage.getItem(k) || "null"); } catch (e) { return null; } }
+function cliSes(){ return leerJSON(CLI_KEY); }
+function stfSes(){ var s = leerJSON(STF_KEY); return s && s.hasta > Date.now() ? s : null; }
+function restHeaders(){
+  var c = cliSes(), s = stfSes();
+  var h = { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + (c && c.access_token ? c.access_token : C.SUPABASE_ANON_KEY) };
+  if (s) h["x-sesion-token"] = s.token;
+  return h;
+}
+async function authPost(path, body){
+  var r = await fetch(C.SUPABASE_URL + "/auth/v1/" + path, { method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY }, body: JSON.stringify(body) });
+  var j = await r.json().catch(function(){ return {}; });
+  if (!r.ok) throw new Error(traducirAuth(j.error_description || j.msg || j.message || j.error || ("Error " + r.status)));
+  return j;
+}
+function traducirAuth(m){
+  m = String(m || "");
+  if (/invalid login|invalid_credentials|invalid grant/i.test(m)) return "Correo o contraseña incorrectos.";
+  if (/already registered|already exists/i.test(m)) return "Ya existe una cuenta con ese correo. Entra con tu contraseña.";
+  if (/password should be at least|weak/i.test(m)) return "La contraseña debe tener al menos 6 caracteres.";
+  if (/email.*invalid|valid email/i.test(m)) return "Ese correo no es válido.";
+  return m;
+}
+async function cliPerfil(sesion){
+  // ficha de cliente de oimira.com (tabla customers); si no existe se crea igual que en la página
+  var h = { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + sesion.access_token };
+  var r = await fetch(C.SUPABASE_URL + "/rest/v1/customers?user_id=eq." + sesion.uid + "&select=full_name,phone,whatsapp", { headers: h });
+  var j = await r.json().catch(function(){ return []; });
+  if (Array.isArray(j) && j[0]) return { nombre: j[0].full_name || "", telefono: j[0].phone || j[0].whatsapp || "" };
+  await fetch(C.SUPABASE_URL + "/rest/v1/customers", { method: "POST", headers: Object.assign({}, h, { Prefer: "return=minimal" }),
+    body: JSON.stringify({ user_id: sesion.uid, email: sesion.email, full_name: sesion.nombre || sesion.email.split("@")[0], phone: sesion.telefono || "", whatsapp: sesion.telefono || "", address: "" }) }).catch(function(){});
+  return { nombre: sesion.nombre || sesion.email.split("@")[0], telefono: sesion.telefono || "" };
+}
+async function cliGuardar(j, extra){
+  var s = { access_token: j.access_token, refresh_token: j.refresh_token, expires_at: Date.now() + (Number(j.expires_in) || 3600) * 1000,
+            uid: j.user.id, email: j.user.email, nombre: (extra && extra.nombre) || "", telefono: (extra && extra.telefono) || "" };
+  var p = await cliPerfil(s).catch(function(){ return null; });
+  if (p){ s.nombre = p.nombre || s.nombre; s.telefono = p.telefono || s.telefono; }
+  localStorage.setItem(CLI_KEY, JSON.stringify(s));
+  pintarCuenta();
+  return s;
+}
+async function cliAsegurar(){
+  var s = cliSes(); if (!s) return null;
+  if (s.expires_at - 60000 > Date.now()) return s;
+  if (!navigator.onLine) return s;
+  try {
+    var j = await authPost("token?grant_type=refresh_token", { refresh_token: s.refresh_token });
+    s.access_token = j.access_token; s.refresh_token = j.refresh_token; s.expires_at = Date.now() + (Number(j.expires_in) || 3600) * 1000;
+    localStorage.setItem(CLI_KEY, JSON.stringify(s)); return s;
+  } catch (e) { localStorage.removeItem(CLI_KEY); pintarCuenta(); return null; }
+}
+setInterval(function(){ cliAsegurar(); }, 10 * 60000);
+function cliSalir(){ localStorage.removeItem(CLI_KEY); BOCETO = null; pintarCuenta(); msgEl("bocMsg", "Saliste de tu cuenta."); }
+function stfSalir(){ localStorage.removeItem(STF_KEY); PIN_ADMIN = null; pintarCuenta(); msgEl("bocMsg", "Modo personal cerrado."); }
+async function stfEntrar(){
+  var pin = prompt("🔐 Personal OiMira — tu PIN personal (el mismo de Compras y Caja):");
+  if (!pin) return;
+  msgEl("bocMsg", "Verificando…");
+  try {
+    var r = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/toppers_staff_login", { method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY }, body: JSON.stringify({ p_pin: pin.trim() }) });
+    var j = await r.json();
+    if (!r.ok || !j || !j.ok) return msgEl("bocMsg", "PIN incorrecto o sin permiso (pídele a Polley el permiso de Toppers).", true);
+    localStorage.setItem(STF_KEY, JSON.stringify({ token: j.token, nombre: j.nombre, hasta: Date.now() + 29 * 86400000 }));
+    pintarCuenta(); msgEl("bocMsg", "✅ Modo personal: " + j.nombre + ". Puedes guardar y abrir bocetos de cualquier cliente.");
+  } catch (e){ msgEl("bocMsg", "No se pudo verificar (¿hay señal?).", true); }
+}
+function pintarCuenta(){
+  var el = document.getElementById("cuentaBar"); if (!el) return;
+  var c = cliSes(), s = stfSes();
+  var h = "";
+  if (s) h += '<span class="cta-pers">🔐 Personal: <b>' + String(s.nombre || "").split(" ")[0] + '</b> · <a href="#" id="lnkStfSalir">salir</a></span>';
+  if (c) h += '<span>👤 <b>' + (c.nombre || c.email) + '</b> · <a href="#" id="lnkCliSalir">salir</a></span>';
+  else if (!s) h += '<a href="#" id="lnkCliEntrar">👤 Entrar / crear cuenta</a> <span style="opacity:.7">(la misma de oimira.com)</span>';
+  if (!s) h += ' · <a href="#" id="lnkStfEntrar" style="opacity:.7">🔐 Personal</a>';
+  el.innerHTML = h;
+  var a;
+  if ((a = document.getElementById("lnkCliEntrar"))) a.onclick = function(e){ e.preventDefault(); abrirCuenta(); };
+  if ((a = document.getElementById("lnkCliSalir"))) a.onclick = function(e){ e.preventDefault(); cliSalir(); };
+  if ((a = document.getElementById("lnkStfEntrar"))) a.onclick = function(e){ e.preventDefault(); stfEntrar(); };
+  if ((a = document.getElementById("lnkStfSalir"))) a.onclick = function(e){ e.preventDefault(); stfSalir(); };
+}
+function abrirCuenta(motivo, alEntrar){
+  var ov = document.createElement("div");
+  ov.style.cssText = "position:fixed;inset:0;background:rgba(15,23,42,.6);display:grid;place-items:center;z-index:10000;padding:16px";
+  ov.innerHTML = '<div style="background:#fff;border-radius:16px;padding:18px;max-width:380px;width:100%;font-family:system-ui,sans-serif;color:#1f2937">' +
+    '<div style="font-size:17px;font-weight:800">👤 Tu cuenta OiMira</div>' +
+    '<div style="font-size:12.5px;color:#64748b;margin:4px 0 10px">' + (motivo || "Es la misma cuenta de oimira.com: con ella guardas tus bocetos y compras en la página.") + '</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:10px"><button id="ctTabE" style="flex:1;padding:8px;border-radius:10px;border:2px solid #c2185b;background:#c2185b;color:#fff;font-weight:700">Entrar</button><button id="ctTabR" style="flex:1;padding:8px;border-radius:10px;border:2px solid #c2185b;background:#fff;color:#c2185b;font-weight:700">Crear cuenta</button></div>' +
+    '<div id="ctReg" style="display:none"><input id="ctNom" placeholder="Tu nombre" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:10px;margin-bottom:6px">' +
+    '<input id="ctTel" type="tel" placeholder="Teléfono / WhatsApp" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:10px;margin-bottom:6px"></div>' +
+    '<input id="ctMail" type="email" autocomplete="email" placeholder="Correo" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:10px;margin-bottom:6px">' +
+    '<input id="ctPass" type="password" autocomplete="current-password" placeholder="Contraseña" style="width:100%;box-sizing:border-box;padding:9px;border:1px solid #cbd5e1;border-radius:10px">' +
+    '<button id="ctOk" style="margin-top:10px;width:100%;padding:11px;border:0;border-radius:10px;background:#c2185b;color:#fff;font-weight:800">Entrar</button>' +
+    '<div style="display:flex;justify-content:space-between;margin-top:8px;font-size:12.5px"><a href="#" id="ctOlvide">¿Olvidaste tu contraseña?</a><a href="#" id="ctCerrar">Seguir sin cuenta</a></div>' +
+    '<div id="ctMsg" style="margin-top:8px;font-size:13px;min-height:18px;color:#b91c1c"></div></div>';
+  document.body.appendChild(ov);
+  var modo = "e", $$ = function(id){ return ov.querySelector("#" + id); };
+  function pintarModo(){
+    $$("ctReg").style.display = modo === "r" ? "" : "none";
+    $$("ctOk").textContent = modo === "r" ? "Crear mi cuenta" : "Entrar";
+    $$("ctTabE").style.background = modo === "e" ? "#c2185b" : "#fff"; $$("ctTabE").style.color = modo === "e" ? "#fff" : "#c2185b";
+    $$("ctTabR").style.background = modo === "r" ? "#c2185b" : "#fff"; $$("ctTabR").style.color = modo === "r" ? "#fff" : "#c2185b";
+  }
+  $$("ctTabE").onclick = function(){ modo = "e"; pintarModo(); };
+  $$("ctTabR").onclick = function(){ modo = "r"; pintarModo(); };
+  $$("ctCerrar").onclick = function(e){ e.preventDefault(); ov.remove(); };
+  $$("ctOlvide").onclick = async function(e){
+    e.preventDefault();
+    var mail = $$("ctMail").value.trim(); if (!mail) { $$("ctMsg").textContent = "Escribe tu correo arriba y vuelve a tocar aquí."; return; }
+    try { await authPost("recover?redirect_to=" + encodeURIComponent("https://oimira.com/reset-password"), { email: mail });
+      $$("ctMsg").style.color = "#047857"; $$("ctMsg").textContent = "Te enviamos un correo para cambiar la contraseña."; }
+    catch (er){ $$("ctMsg").style.color = "#b91c1c"; $$("ctMsg").textContent = er.message; }
+  };
+  $$("ctOk").onclick = async function(){
+    var mail = $$("ctMail").value.trim(), pass = $$("ctPass").value;
+    $$("ctMsg").style.color = "#b91c1c";
+    if (!mail || !pass) { $$("ctMsg").textContent = "Escribe tu correo y contraseña."; return; }
+    if (!navigator.onLine) { $$("ctMsg").textContent = "Sin señal: para entrar hace falta internet."; return; }
+    var btn = $$("ctOk"); btn.disabled = true; var txt = btn.textContent; btn.textContent = "Un momento…";
+    try {
+      var j, extra = null;
+      if (modo === "r"){
+        var nom = $$("ctNom").value.trim(), tel = $$("ctTel").value.replace(/[^0-9+]/g, "");
+        if (!nom) throw new Error("Escribe tu nombre.");
+        if (pass.length < 6) throw new Error("La contraseña debe tener al menos 6 caracteres.");
+        extra = { nombre: nom, telefono: tel };
+        j = await authPost("signup", { email: mail, password: pass, data: { full_name: nom } });
+        if (j && j.user && j.user.identities && j.user.identities.length === 0) throw new Error("Ya existe una cuenta con ese correo. Entra con tu contraseña.");
+        if (!j.access_token) j = await authPost("token?grant_type=password", { email: mail, password: pass });
+      } else {
+        j = await authPost("token?grant_type=password", { email: mail, password: pass });
+      }
+      var s = await cliGuardar(j, extra);
+      ov.remove();
+      msgEl("bocMsg", "👋 Hola " + (s.nombre || "") + ". Ya puedes guardar y abrir tus bocetos.");
+      if (alEntrar) alEntrar();
+    } catch (er){ $$("ctMsg").textContent = er.message || String(er); btn.disabled = false; btn.textContent = txt; }
+  };
+  pintarModo();
+  setTimeout(function(){ $$("ctMail").focus(); }, 50);
+}
+document.addEventListener("DOMContentLoaded", pintarCuenta); setTimeout(pintarCuenta, 0);
 async function cargarFilamentos(){
   try {
     var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_filamentos?select=nombre,color&order=orden", { headers: restHeaders() });
@@ -1036,10 +1184,11 @@ async function cargarFilamentos(){
   pintarFilamentos(); pintarSwatches();
 }
 async function guardarFilamentos(){
-  var r = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/topper_filamentos_guardar", {
-    method: "POST", headers: restHeaders(),
-    body: JSON.stringify({ p_pin: PIN_ADMIN, p_lista: FILAMENTOS.map(function(f){ return { n: f.n, c: f.c }; }) }),
-  });
+  var lista = FILAMENTOS.map(function(f){ return { n: f.n, c: f.c }; });
+  var s = stfSes();
+  var r = s
+    ? await fetch(C.SUPABASE_URL + "/rest/v1/rpc/topper_filamentos_guardar_sesion", { method: "POST", headers: restHeaders(), body: JSON.stringify({ p_token: s.token, p_lista: lista }) })
+    : await fetch(C.SUPABASE_URL + "/rest/v1/rpc/topper_filamentos_guardar", { method: "POST", headers: restHeaders(), body: JSON.stringify({ p_pin: PIN_ADMIN, p_lista: lista }) });
   if (!r.ok){ var j = await r.json().catch(function(){ return {}; }); throw new Error(j.message || "No se pudo guardar"); }
 }
 function guardarColores(){ try { var o = {}; PARTES_COLOR.forEach(function(p){ o[p[0]] = $("#" + p[0]).value; }); localStorage.setItem("tp_colores", JSON.stringify(o)); } catch (e) {} }
@@ -1073,8 +1222,8 @@ function pintarFilamentos(){
   });
 }
 document.getElementById("btnAdminFil").onclick = async function(){
-  if (PIN_ADMIN){ document.getElementById("panelFil").style.display = ""; return; }
-  var pin = prompt("PIN de administrador:");
+  if (PIN_ADMIN || stfSes()){ document.getElementById("panelFil").style.display = ""; return; }
+  var pin = prompt("Tu PIN personal (el mismo de Compras y Caja):");
   if (!pin) return;
   msgEl("filMsg", "Verificando…");
   try {
@@ -1152,6 +1301,7 @@ var _colaBocEnviando = false;
 async function colaBocEnviar(){
   if (_colaBocEnviando || !navigator.onLine) return;
   var c = colaBocLeer(); if (!c.length) return;
+  if (!stfSes()) await cliAsegurar(); // renovar la sesión del cliente antes de enviar
   _colaBocEnviando = true; var enviados = 0;
   try {
     for (var i = 0; i < c.length; i++){
@@ -1185,10 +1335,24 @@ setInterval(colaBocEnviar, 60000);
 document.getElementById("btnGuardarBoc").onclick = async function(){
   var lineas = ["l1","l2","l3"].some(function(id){ return $("#" + id).value.trim(); });
   if (!lineas && !MOTIVO_SEL) return msgEl("bocMsg", "No hay nada que guardar todavia.", true);
-  var nombre = BOCETO ? BOCETO.cliente : prompt("Nombre del cliente:");
-  if (!nombre || !nombre.trim()) return;
-  var tel = BOCETO ? BOCETO.telefono : prompt("Telefono del cliente:");
-  if (!tel || !tel.trim()) return;
+  // 01/10/2026: el cliente guarda con su cuenta de oimira.com; el personal (🔐) guarda para cualquier cliente
+  var personal = !!stfSes(), cli = personal ? null : await cliAsegurar();
+  if (!personal && !cli){
+    var self = this;
+    return abrirCuenta("Para guardar tu boceto entra o crea tu cuenta (la misma de oimira.com). Tu diseño no se pierde.", function(){ self.click(); });
+  }
+  var nombre, tel;
+  if (personal){
+    nombre = BOCETO ? BOCETO.cliente : prompt("Nombre del cliente:");
+    if (!nombre || !nombre.trim()) return;
+    tel = BOCETO ? BOCETO.telefono : prompt("Telefono del cliente:");
+    if (!tel || !tel.trim()) return;
+  } else {
+    nombre = (BOCETO && BOCETO.cliente) || cli.nombre || cli.email;
+    tel = (BOCETO && BOCETO.telefono) || cli.telefono || "";
+    if (!tel){ tel = prompt("Tu teléfono / WhatsApp (para avisarte cuando esté listo):") || ""; if (tel){ cli.telefono = tel.replace(/[^0-9+]/g, ""); localStorage.setItem(CLI_KEY, JSON.stringify(cli)); } }
+    tel = tel || "sin teléfono";
+  }
   tel = tel.replace(/[^0-9+]/g, "");
   msgEl("bocMsg", "Guardando boceto…");
   var nuevoId = (BOCETO && BOCETO.id) ? null : uuidNuevo();
@@ -1226,14 +1390,24 @@ document.getElementById("btnGuardarBoc").onclick = async function(){
   }
 };
 document.getElementById("btnAbrirBoc").onclick = async function(){
-  var tel = prompt("Telefono del cliente:");
-  if (!tel || !tel.trim()) return;
-  tel = tel.replace(/[^0-9+]/g, "");
+  // 01/10/2026: el cliente ve SOLO sus bocetos (su cuenta); el personal busca por teléfono
+  var personal = !!stfSes(), cli = personal ? null : await cliAsegurar();
+  if (!personal && !cli){
+    var self = this;
+    return abrirCuenta("Entra con tu cuenta (la misma de oimira.com) para ver tus bocetos guardados.", function(){ self.click(); });
+  }
+  var filtro = "";
+  if (personal){
+    var tel = prompt("Telefono del cliente:");
+    if (!tel || !tel.trim()) return;
+    tel = tel.replace(/[^0-9+]/g, "");
+    filtro = "telefono=eq." + encodeURIComponent(tel) + "&";
+  }
   msgEl("bocMsg", "Buscando bocetos…");
   try {
-    var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?telefono=eq." + encodeURIComponent(tel) + "&select=id,cliente,telefono,diseno,actualizado&order=actualizado.desc&limit=10", { headers: restHeaders() });
+    var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?" + filtro + "select=id,cliente,telefono,diseno,actualizado&order=actualizado.desc&limit=20", { headers: restHeaders() });
     var lista = await r.json();
-    if (!Array.isArray(lista) || !lista.length) return msgEl("bocMsg", "No hay bocetos con ese telefono.", true);
+    if (!Array.isArray(lista) || !lista.length) return msgEl("bocMsg", personal ? "No hay bocetos con ese telefono." : "Todavía no tienes bocetos guardados.", true);
     var idx = 0;
     if (lista.length > 1){
       var menu = lista.map(function(b, i){
