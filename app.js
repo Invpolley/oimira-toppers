@@ -1044,7 +1044,7 @@ function restHeaders(){
 async function authPost(path, body){
   var r = await fetch(C.SUPABASE_URL + "/auth/v1/" + path, { method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY }, body: JSON.stringify(body) });
   var j = await r.json().catch(function(){ return {}; });
-  if (!r.ok) throw new Error(traducirAuth(j.error_description || j.msg || j.message || j.error || ("Error " + r.status)));
+  if (!r.ok){ var err = new Error(traducirAuth(j.error_description || j.msg || j.message || j.error || ("Error " + r.status))); err.status = r.status; throw err; }
   return j;
 }
 function traducirAuth(m){
@@ -1074,15 +1074,27 @@ async function cliGuardar(j, extra){
   pintarCuenta();
   return s;
 }
-async function cliAsegurar(){
-  var s = cliSes(); if (!s) return null;
-  if (s.expires_at - 60000 > Date.now()) return s;
-  if (!navigator.onLine) return s;
-  try {
-    var j = await authPost("token?grant_type=refresh_token", { refresh_token: s.refresh_token });
-    s.access_token = j.access_token; s.refresh_token = j.refresh_token; s.expires_at = Date.now() + (Number(j.expires_in) || 3600) * 1000;
-    localStorage.setItem(CLI_KEY, JSON.stringify(s)); return s;
-  } catch (e) { localStorage.removeItem(CLI_KEY); pintarCuenta(); return null; }
+/* 11/11/2026 (auditoría sin internet): la sesión SOLO se borra cuando el servidor la rechaza de verdad (4xx).
+   Un corte de red o un 5xx al renovarla la conserva: se reintenta después y nada se envía con la sesión vencida.
+   Una sola renovación a la vez (el token de renovación es de un solo uso). */
+function cliVencida(s){ return !s || !(s.expires_at - 60000 > Date.now()); }
+var _cliRenovando = null;
+function cliAsegurar(){
+  var s = cliSes(); if (!s) return Promise.resolve(null);
+  if (!cliVencida(s) || !navigator.onLine) return Promise.resolve(s);
+  if (_cliRenovando) return _cliRenovando;
+  _cliRenovando = (async function(){
+    try {
+      var j = await authPost("token?grant_type=refresh_token", { refresh_token: s.refresh_token });
+      s.access_token = j.access_token; s.refresh_token = j.refresh_token; s.expires_at = Date.now() + (Number(j.expires_in) || 3600) * 1000;
+      localStorage.setItem(CLI_KEY, JSON.stringify(s)); return s;
+    } catch (e) {
+      var st = e && e.status;
+      if (st >= 400 && st < 500 && st !== 408 && st !== 429){ localStorage.removeItem(CLI_KEY); pintarCuenta(); return null; }
+      return s;   // sin señal o servidor caído: la sesión sigue guardada, vencida, hasta poder renovarla
+    } finally { _cliRenovando = null; }
+  })();
+  return _cliRenovando;
 }
 setInterval(function(){ cliAsegurar(); }, 10 * 60000);
 function cliSalir(){ localStorage.removeItem(CLI_KEY); BOCETO = null; pintarCuenta(); msgEl("bocMsg", "Saliste de tu cuenta."); }
@@ -1286,7 +1298,17 @@ function aplicarDiseno(o, sinRefrescar){
    asignado para que reenviarlo no lo duplique) y se envía solo al volver la señal. */
 var COLA_BOC_KEY = "tp_cola_bocetos_v1";
 function colaBocLeer(){ try { return JSON.parse(localStorage.getItem(COLA_BOC_KEY) || "[]"); } catch (e) { return []; } }
-function colaBocEscribir(c){ try { localStorage.setItem(COLA_BOC_KEY, JSON.stringify(c)); } catch (e) {} }
+function colaBocEscribir(c){ try { localStorage.setItem(COLA_BOC_KEY, JSON.stringify(c)); return true; } catch (e) { return false; } }
+/* 11/11/2026: lo que el servidor rechaza de verdad sale de la cola a esta bandeja (últimos 20) para no bloquear a los demás. */
+var COLA_BOC_ERR_KEY = "tp_cola_errores";
+function colaBocApartar(it, motivo){
+  try {
+    var e = JSON.parse(localStorage.getItem(COLA_BOC_ERR_KEY) || "[]");
+    e.push({ id: it.id, cliente: it.cliente, telefono: it.telefono, diseno: it.diseno, actualizado: it.actualizado, error: motivo, rechazado: new Date().toISOString() });
+    localStorage.setItem(COLA_BOC_ERR_KEY, JSON.stringify(e.slice(-20)));
+  } catch (x) {}
+}
+function colaBocDuenoActual(){ if (stfSes()) return "personal"; var c = cliSes(); return c && c.uid ? c.uid : null; }
 function uuidNuevo(){
   if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function(c){ var r = Math.random() * 16 | 0; return (c === "x" ? r : (r & 3 | 8)).toString(16); });
@@ -1295,39 +1317,69 @@ function colaBocAgregar(item){
   var c = colaBocLeer(), prev = c.filter(function(x){ return x.id === item.id; })[0];
   if (prev){ prev.diseno = item.diseno; prev.actualizado = item.actualizado; }  // si aún no se creó, sigue siendo "nuevo"
   else c.push(item);
-  colaBocEscribir(c);
+  return colaBocEscribir(c);   // false = el equipo no pudo guardarlo (almacenamiento lleno)
 }
 var _colaBocEnviando = false;
+function colaBocClasificar(r){
+  if (r.status >= 500 || r.status === 408 || r.status === 429) return "red";     // servidor caído u ocupado: reintentar luego
+  if (r.status === 401 || r.status === 403) return "sesion";                       // sesión no aceptada: conservar y pedir entrar
+  return "El servidor rechazó el boceto (error " + r.status + ").";
+}
+/* Envía un boceto de la cola. Devuelve "ok" | "red" | "sesion" | texto del rechazo.
+   11/11/2026: un cambio (PATCH) solo cuenta como guardado si el servidor devuelve la fila; antes bastaba un "204",
+   que también llega cuando no se cambió nada (sesión vencida o boceto de otra cuenta). */
+async function colaBocUno(it){
+  if (it.nuevo){
+    var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto", { method: "POST", headers: restHeaders(),
+      body: JSON.stringify({ id: it.id, cliente: it.cliente, telefono: it.telefono, diseno: it.diseno, actualizado: it.actualizado }) });
+    if (r.ok) return "ok";
+    if (r.status === 409) it.nuevo = false;   // ya estaba creado: se actualiza abajo
+    else return colaBocClasificar(r);
+  }
+  var r2 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + it.id + "&select=id", { method: "PATCH",
+    headers: Object.assign(restHeaders(), { Prefer: "return=representation" }),
+    body: JSON.stringify({ diseno: it.diseno, actualizado: it.actualizado }) });
+  if (!r2.ok) return colaBocClasificar(r2);
+  var filas = await r2.json().catch(function(){ return null; });
+  if (Array.isArray(filas) && filas.length) return "ok";
+  var st = stfSes();
+  if (st){   // modo personal: ¿el servidor todavía acepta el PIN de este equipo?
+    var rv = await fetch(C.SUPABASE_URL + "/rest/v1/rpc/toppers_staff_ok", { method: "POST", headers: { "Content-Type": "application/json", apikey: C.SUPABASE_ANON_KEY, Authorization: "Bearer " + C.SUPABASE_ANON_KEY }, body: JSON.stringify({ p_token: st.token }) });
+    if (!rv.ok) return "red";
+    if ((await rv.json().catch(function(){ return null; })) !== true) return "sesion";
+  }
+  return "El servidor no guardó el cambio: el boceto no pertenece a esta cuenta o ya no existe.";
+}
 async function colaBocEnviar(){
   if (_colaBocEnviando || !navigator.onLine) return;
   var c = colaBocLeer(); if (!c.length) return;
-  if (!stfSes()) await cliAsegurar(); // renovar la sesión del cliente antes de enviar
-  _colaBocEnviando = true; var enviados = 0;
+  _colaBocEnviando = true; var enviados = 0, apartados = 0, faltaSesion = false, ajenos = 0;
   try {
-    for (var i = 0; i < c.length; i++){
-      var it = c[i], ok = false;
-      try {
-        if (it.nuevo){
-          var r = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto", { method: "POST", headers: restHeaders(),
-            body: JSON.stringify({ id: it.id, cliente: it.cliente, telefono: it.telefono, diseno: it.diseno, actualizado: it.actualizado }) });
-          if (r.ok) ok = true;
-          else if (r.status === 409) it.nuevo = false;   // ya estaba creado: se actualiza abajo
-        }
-        if (!ok && !it.nuevo){
-          var r2 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + it.id, { method: "PATCH", headers: restHeaders(),
-            body: JSON.stringify({ diseno: it.diseno, actualizado: it.actualizado }) });
-          ok = r2.ok;
-        }
-      } catch (e) { break; }   // sin señal otra vez: se intenta después
-      if (!ok) break;
-      it._ok = true; enviados++;
-      if (BOCETO && BOCETO.id === it.id) delete BOCETO.pendiente;
+    // Sin una sesión válida no se envía nada (el servidor contestaría "sin cambios" y el boceto se daría por guardado).
+    var puede = true;
+    if (!stfSes()){
+      var s = await cliAsegurar();
+      if (!s){ faltaSesion = true; puede = false; }
+      else if (cliVencida(s)) puede = false;        // no se pudo renovar (señal inestable): se reintenta luego
+    }
+    var yo = colaBocDuenoActual();
+    for (var i = 0; puede && i < c.length; i++){
+      var it = c[i], res = "red";
+      if (it.de && it.de !== yo){ ajenos++; continue; }   // lo guardó otra cuenta en este equipo: espera a que esa cuenta entre
+      try { res = await colaBocUno(it); } catch (e) { res = "red"; }   // sin señal otra vez: se intenta después
+      if (res === "red") break;
+      if (res === "sesion"){ faltaSesion = true; break; }
+      if (res === "ok"){ it._ok = true; enviados++; if (BOCETO && BOCETO.id === it.id) delete BOCETO.pendiente; }
+      else { it._ok = true; apartados++; colaBocApartar(it, res); }
     }
   } finally {
     colaBocEscribir(colaBocLeer().filter(function(x){ return !c.some(function(y){ return y._ok && y.id === x.id && y.actualizado === x.actualizado; }); }));
     _colaBocEnviando = false;
   }
-  if (enviados) msgEl("bocMsg", "✅ Se enviaron " + enviados + " boceto(s) que estaban guardados en el equipo.");
+  var quedan = colaBocLeer().length - ajenos;
+  if (apartados) msgEl("bocMsg", "⚠️ El servidor no aceptó " + apartados + " boceto(s) guardados en este equipo. No se borraron: avísale al personal de OiMira." + (enviados ? " Se enviaron " + enviados + "." : ""), true);
+  else if (faltaSesion && quedan > 0) msgEl("bocMsg", "🔑 Hay " + quedan + " boceto(s) guardados en este equipo. Entra con tu cuenta (o 🔐 Personal) para enviarlos; no se pierden.", true);
+  else if (enviados) msgEl("bocMsg", "✅ Se enviaron " + enviados + " boceto(s) que estaban guardados en el equipo.");
 }
 window.addEventListener("online", colaBocEnviar);
 setInterval(colaBocEnviar, 60000);
@@ -1358,27 +1410,38 @@ document.getElementById("btnGuardarBoc").onclick = async function(){
   var nuevoId = (BOCETO && BOCETO.id) ? null : uuidNuevo();
   var ahora = new Date().toISOString();
   function aCola(){
+    var eraNuevo = !BOCETO;
     if (!BOCETO) BOCETO = { id: nuevoId, cliente: nombre.trim(), telefono: tel, pendiente: true };
-    colaBocAgregar({ id: BOCETO.id, nuevo: !!nuevoId || !!BOCETO.pendiente, cliente: BOCETO.cliente, telefono: BOCETO.telefono, diseno: estadoDiseno(), actualizado: ahora });
+    var guardado = colaBocAgregar({ id: BOCETO.id, nuevo: !!nuevoId || !!BOCETO.pendiente, cliente: BOCETO.cliente, telefono: BOCETO.telefono, diseno: estadoDiseno(), actualizado: ahora, de: colaBocDuenoActual() });
     guardarBorradorYa();
-    msgEl("bocMsg", "📴 Sin señal: el boceto de " + BOCETO.cliente + " quedó guardado en este equipo y se envía solo cuando vuelva internet.");
+    if (!guardado){   // 11/11/2026: nunca decir "quedó guardado" si el equipo no pudo guardarlo
+      if (eraNuevo) BOCETO = null;
+      actualizarEstado();
+      return msgEl("bocMsg", "⚠️ No se pudo guardar en este equipo (almacenamiento lleno) ni enviarlo ahora. No cierres esta pantalla y vuelve a tocar Guardar en un momento.", true);
+    }
+    msgEl("bocMsg", "📴 Sin conexión con el servidor: el boceto de " + BOCETO.cliente + " quedó guardado en este equipo y se envía solo cuando vuelva.");
     actualizarEstado();
   }
   if (!navigator.onLine) return aCola();
+  if (!personal && cliVencida(cli)) return aCola();   // la sesión no se pudo renovar (señal inestable): se guarda en el equipo
   try {
     if (BOCETO && BOCETO.pendiente){ aCola(); colaBocEnviar(); return; }
     if (BOCETO && BOCETO.id){
-      var r1 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + BOCETO.id, {
-        method: "PATCH", headers: restHeaders(),
-        body: JSON.stringify({ diseno: estadoDiseno(), actualizado: new Date().toISOString() }),
+      var r1 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto?id=eq." + BOCETO.id + "&select=id", {
+        method: "PATCH", headers: Object.assign(restHeaders(), { Prefer: "return=representation" }),
+        body: JSON.stringify({ diseno: estadoDiseno(), actualizado: ahora }),
       });
-      if (!r1.ok) throw new Error("guardar");
+      if (r1.status >= 500) return aCola();                       // servidor caído: igual que sin señal
+      if (!r1.ok) throw new Error(r1.status === 401 || r1.status === 403 ? "sesion" : "guardar");
+      var hechas = await r1.json().catch(function(){ return null; });
+      if (!Array.isArray(hechas) || !hechas.length) throw new Error("sinfilas");   // 11/11/2026: sin fila devuelta = no se guardó
     } else {
       var r2 = await fetch(C.SUPABASE_URL + "/rest/v1/topper_boceto", {
         method: "POST", headers: Object.assign(restHeaders(), { Prefer: "return=representation" }),
         body: JSON.stringify({ id: nuevoId, cliente: nombre.trim(), telefono: tel, diseno: estadoDiseno() }),
       });
-      if (!r2.ok) throw new Error("guardar");
+      if (r2.status >= 500) return aCola();
+      if (!r2.ok) throw new Error(r2.status === 401 || r2.status === 403 ? "sesion" : "guardar");
       var fila = (await r2.json())[0];
       BOCETO = { id: fila.id, cliente: fila.cliente, telefono: fila.telefono };
     }
@@ -1386,6 +1449,9 @@ document.getElementById("btnGuardarBoc").onclick = async function(){
   } catch (e){
     // Error de red (fetch lanza TypeError): a la cola. Otros errores del servidor: avisar.
     if (e && e.name === "TypeError") return aCola();
+    if (e && (e.message === "sesion" || e.message === "sinfilas"))
+      return msgEl("bocMsg", e.message === "sesion" ? "🔑 No se guardó: tu sesión no fue aceptada. Entra de nuevo y vuelve a tocar Guardar; tu diseño sigue aquí."
+        : "⚠️ No se guardó: este boceto no pertenece a la cuenta con la que entraste (o ya no existe). Entra con la cuenta correcta y vuelve a tocar Guardar; tu diseño sigue aquí.", true);
     msgEl("bocMsg", "No se pudo guardar (el servidor lo rechazó). Intenta de nuevo.", true);
   }
 };
