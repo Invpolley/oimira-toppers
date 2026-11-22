@@ -1,0 +1,857 @@
+{
+ "modelo:mariposas-boutique": {
+  "anchoMm": 148,
+  "altoMm": 181,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 14308.3,
+   "bbox": [
+    -73.74,
+    -135.67,
+    73.8,
+    90.69
+   ]
+  },
+  "texto": {
+   "area": 1627.13,
+   "bbox": [
+    -70.2,
+    -56.24,
+    70.2,
+    33.2
+   ]
+  },
+  "motivo": {
+   "area": 647.98,
+   "bbox": [
+    -30.59,
+    46.03,
+    27.72,
+    87.09
+   ]
+  },
+  "adorno": {
+   "area": 694.2,
+   "bbox": [
+    -39.16,
+    -87.09,
+    36.3,
+    -63.93
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:rosa-clasica": {
+  "anchoMm": 138,
+  "altoMm": 204,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 12381.67,
+   "bbox": [
+    -68.83,
+    -147.01,
+    68.88,
+    102.04
+   ]
+  },
+  "texto": {
+   "area": 1165.94,
+   "bbox": [
+    -65.52,
+    -66.5,
+    65.52,
+    5.45
+   ]
+  },
+  "motivo": {
+   "area": 952.01,
+   "bbox": [
+    -24.59,
+    15.81,
+    21.24,
+    98.68
+   ]
+  },
+  "adorno": {
+   "area": 653.69,
+   "bbox": [
+    -40.84,
+    -98.68,
+    37.49,
+    -72.71
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:corona-real": {
+  "anchoMm": 150,
+  "altoMm": 150,
+  "forma": "aro",
+  "nPalitos": 2,
+  "placa": {
+   "area": 3440.41,
+   "bbox": [
+    -75,
+    -108.26,
+    75,
+    75
+   ]
+  },
+  "texto": {
+   "area": 558.28,
+   "bbox": [
+    -43.55,
+    -33.99,
+    43.55,
+    18.74
+   ]
+  },
+  "motivo": {
+   "area": 252.67,
+   "bbox": [
+    -17.57,
+    26.53,
+    14.42,
+    54
+   ]
+  },
+  "adorno": {
+   "area": 287.75,
+   "bbox": [
+    -22.68,
+    -54,
+    19.54,
+    -38.67
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:boda-infinita": {
+  "anchoMm": 157,
+  "altoMm": 189,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 16062.15,
+   "bbox": [
+    -78.64,
+    -138.16,
+    78.72,
+    94.73
+   ]
+  },
+  "texto": {
+   "area": 1764.1,
+   "bbox": [
+    -74.88,
+    -44.22,
+    74.88,
+    34.72
+   ]
+  },
+  "motivo": {
+   "area": 782.98,
+   "bbox": [
+    -27.54,
+    46.15,
+    24.19,
+    90.89
+   ]
+  },
+  "adorno": {
+   "area": 1224.7,
+   "bbox": [
+    -41.4,
+    -90.89,
+    38.05,
+    -51.08
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:cumple-editorial": {
+  "anchoMm": 150,
+  "altoMm": 77,
+  "forma": "rect",
+  "nPalitos": 2,
+  "placa": {
+   "area": 11979.79,
+   "bbox": [
+    -75,
+    -82.76,
+    75,
+    38.53
+   ]
+  },
+  "texto": {
+   "area": 562.42,
+   "bbox": [
+    -56.13,
+    -27.64,
+    56.13,
+    -2.7
+   ]
+  },
+  "motivo": {
+   "area": 183.58,
+   "bbox": [
+    -13.56,
+    1.09,
+    13.27,
+    27.64
+   ]
+  },
+  "adorno": null,
+  "borde": {
+   "area": 1030.61,
+   "bbox": [
+    -75,
+    -38.53,
+    75,
+    38.53
+   ]
+  },
+  "capas": null
+ },
+ "modelo:letras-acrilico": {
+  "anchoMm": 142,
+  "altoMm": 190,
+  "forma": "letras",
+  "nPalitos": 2,
+  "placa": {
+   "area": 9194.13,
+   "bbox": [
+    -71.14,
+    -116.03,
+    71.2,
+    73.55
+   ]
+  },
+  "texto": {
+   "area": 2805.46,
+   "bbox": [
+    -70,
+    -72.35,
+    70,
+    -4.53
+   ]
+  },
+  "motivo": {
+   "area": 1033.02,
+   "bbox": [
+    -28.51,
+    6.02,
+    28.44,
+    72.35
+   ]
+  },
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "modelo:graduacion": {
+  "anchoMm": 148,
+  "altoMm": 130,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 10197.63,
+   "bbox": [
+    -73.8,
+    -109.28,
+    73.8,
+    65
+   ]
+  },
+  "texto": {
+   "area": 1872.78,
+   "bbox": [
+    -70.2,
+    -29.91,
+    70.2,
+    19.7
+   ]
+  },
+  "motivo": {
+   "area": 902.87,
+   "bbox": [
+    -29.07,
+    27.42,
+    28.14,
+    61.42
+   ]
+  },
+  "adorno": {
+   "area": 840.37,
+   "bbox": [
+    -37.81,
+    -61.42,
+    36.88,
+    -34.54
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:amor-minimal": {
+  "anchoMm": 130,
+  "altoMm": 130,
+  "forma": "aro",
+  "nPalitos": 2,
+  "placa": {
+   "area": 2363.32,
+   "bbox": [
+    -65,
+    -98.89,
+    65,
+    65
+   ]
+  },
+  "texto": {
+   "area": 828.8,
+   "bbox": [
+    -53.3,
+    -23.52,
+    53.3,
+    -3.31
+   ]
+  },
+  "motivo": {
+   "area": 519.67,
+   "bbox": [
+    -24.38,
+    5.26,
+    24.44,
+    42.23
+   ]
+  },
+  "adorno": {
+   "area": 285.93,
+   "bbox": [
+    -29.81,
+    -42.23,
+    29.86,
+    -28.66
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:osito-corazon": {
+  "anchoMm": 148,
+  "altoMm": 171,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 13325.24,
+   "bbox": [
+    -73.8,
+    -127.53,
+    73.76,
+    85.61
+   ]
+  },
+  "texto": {
+   "area": 967.49,
+   "bbox": [
+    -70.2,
+    -65.33,
+    70.2,
+    -5.42
+   ]
+  },
+  "motivo": {
+   "area": 4233.87,
+   "bbox": [
+    -39.79,
+    3.27,
+    39.09,
+    82.04
+   ]
+  },
+  "adorno": {
+   "area": 415.21,
+   "bbox": [
+    -39.79,
+    -82.04,
+    39.09,
+    -70.55
+   ]
+  },
+  "borde": null,
+  "capas": [
+   {
+    "area": 243.12,
+    "bbox": [
+     -38.82,
+     3.27,
+     33,
+     81.94
+    ]
+   },
+   {
+    "area": 3895.05,
+    "bbox": [
+     -39.79,
+     3.38,
+     39.09,
+     82.04
+    ]
+   },
+   {
+    "area": 1926.3,
+    "bbox": [
+     -36.9,
+     4.87,
+     37.7,
+     78.19
+    ]
+   },
+   {
+    "area": 666.88,
+    "bbox": [
+     -25.04,
+     9.47,
+     24.45,
+     75.95
+    ]
+   },
+   {
+    "area": 463.45,
+    "bbox": [
+     -17.56,
+     22.72,
+     16.86,
+     50.51
+    ]
+   },
+   {
+    "area": 0.1,
+    "bbox": [
+     11.09,
+     19.84,
+     18.46,
+     74.88
+    ]
+   }
+  ]
+ },
+ "modelo:fiesta-globos": {
+  "anchoMm": 148,
+  "altoMm": 162,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 10325.34,
+   "bbox": [
+    -73.77,
+    -123.48,
+    73.79,
+    81.16
+   ]
+  },
+  "texto": {
+   "area": 855.94,
+   "bbox": [
+    -70.2,
+    -53.06,
+    70.2,
+    -6.83
+   ]
+  },
+  "motivo": {
+   "area": 1383.41,
+   "bbox": [
+    -32.6,
+    0.84,
+    33.29,
+    77.58
+   ]
+  },
+  "adorno": {
+   "area": 397.53,
+   "bbox": [
+    -38.04,
+    -77.58,
+    38.73,
+    -57.67
+   ]
+  },
+  "borde": null,
+  "capas": null
+ },
+ "modelo:flork-fiesta": {
+  "anchoMm": 138,
+  "altoMm": 143,
+  "forma": "contorno",
+  "nPalitos": 2,
+  "placa": {
+   "area": 8645.64,
+   "bbox": [
+    -68.88,
+    -115.7,
+    68.87,
+    71.49
+   ]
+  },
+  "texto": {
+   "area": 642.32,
+   "bbox": [
+    -65.52,
+    -68.14,
+    65.52,
+    -19.67
+   ]
+  },
+  "motivo": {
+   "area": 1084.66,
+   "bbox": [
+    -29.27,
+    -12.65,
+    28.24,
+    68.14
+   ]
+  },
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "modelo:tortita-dulce": {
+  "anchoMm": 150,
+  "altoMm": 124,
+  "forma": "ovalo",
+  "nPalitos": 2,
+  "placa": {
+   "area": 15670.81,
+   "bbox": [
+    -75,
+    -91.38,
+    75,
+    65.54
+   ]
+  },
+  "texto": {
+   "area": 750.21,
+   "bbox": [
+    -55.69,
+    -28.6,
+    55.69,
+    3.01
+   ]
+  },
+  "motivo": {
+   "area": 419.46,
+   "bbox": [
+    -16.32,
+    7.47,
+    14.41,
+    45.4
+   ]
+  },
+  "adorno": {
+   "area": 193.51,
+   "bbox": [
+    -22.27,
+    -45.4,
+    20.36,
+    -31.27
+   ]
+  },
+  "borde": {
+   "area": 1041.46,
+   "bbox": [
+    -75,
+    -65.54,
+    75,
+    65.54
+   ]
+  },
+  "capas": null
+ },
+ "forma:contorno:palitos": {
+  "anchoMm": 138,
+  "altoMm": 73,
+  "forma": "contorno",
+  "nPalitos": 1,
+  "placa": {
+   "area": 5079.66,
+   "bbox": [
+    -68.87,
+    -81.6,
+    68.85,
+    36.68
+   ]
+  },
+  "texto": {
+   "area": 1702.61,
+   "bbox": [
+    -65.52,
+    -33.33,
+    65.52,
+    33.33
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:contorno:sin": {
+  "anchoMm": 138,
+  "altoMm": 73,
+  "forma": "contorno",
+  "nPalitos": 0,
+  "placa": {
+   "area": 4820.15,
+   "bbox": [
+    -68.87,
+    -36.69,
+    68.85,
+    36.68
+   ]
+  },
+  "texto": {
+   "area": 1702.61,
+   "bbox": [
+    -65.52,
+    -33.33,
+    65.52,
+    33.33
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:letras:palitos": {
+  "anchoMm": 142,
+  "altoMm": 104,
+  "forma": "letras",
+  "nPalitos": 2,
+  "placa": {
+   "area": 4484.36,
+   "bbox": [
+    -71.19,
+    -66.98,
+    71.15,
+    36.8
+   ]
+  },
+  "texto": {
+   "area": 1943.32,
+   "bbox": [
+    -70,
+    -35.61,
+    70,
+    35.61
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:letras:sin": {
+  "anchoMm": 142,
+  "altoMm": 73,
+  "forma": "letras",
+  "nPalitos": 0,
+  "placa": {
+   "area": 3990.91,
+   "bbox": [
+    -71.19,
+    -36.68,
+    71.15,
+    36.8
+   ]
+  },
+  "texto": {
+   "area": 1943.32,
+   "bbox": [
+    -70,
+    -35.61,
+    70,
+    35.61
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:aro:palitos": {
+  "anchoMm": 140,
+  "altoMm": 140,
+  "forma": "aro",
+  "nPalitos": 2,
+  "placa": {
+   "area": 2990.58,
+   "bbox": [
+    -70,
+    -103.57,
+    70,
+    70
+   ]
+  },
+  "texto": {
+   "area": 1306.72,
+   "bbox": [
+    -57.4,
+    -29.2,
+    57.4,
+    29.2
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:aro:sin": {
+  "anchoMm": 140,
+  "altoMm": 140,
+  "forma": "aro",
+  "nPalitos": 0,
+  "placa": {
+   "area": 2524.96,
+   "bbox": [
+    -70,
+    -70,
+    70,
+    70
+   ]
+  },
+  "texto": {
+   "area": 1306.72,
+   "bbox": [
+    -57.4,
+    -29.2,
+    57.4,
+    29.2
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:ovalo:palitos": {
+  "anchoMm": 140,
+  "altoMm": 76,
+  "forma": "ovalo",
+  "nPalitos": 2,
+  "placa": {
+   "area": 9220.11,
+   "bbox": [
+    -70,
+    -73.55,
+    70,
+    40.35
+   ]
+  },
+  "texto": {
+   "area": 1022.36,
+   "bbox": [
+    -50.77,
+    -25.83,
+    50.77,
+    25.83
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:ovalo:sin": {
+  "anchoMm": 140,
+  "altoMm": 76,
+  "forma": "ovalo",
+  "nPalitos": 0,
+  "placa": {
+   "area": 8773,
+   "bbox": [
+    -70,
+    -40.35,
+    70,
+    40.35
+   ]
+  },
+  "texto": {
+   "area": 1022.36,
+   "bbox": [
+    -50.77,
+    -25.83,
+    50.77,
+    25.83
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:rect:palitos": {
+  "anchoMm": 140,
+  "altoMm": 76,
+  "forma": "rect",
+  "nPalitos": 2,
+  "placa": {
+   "area": 11080.4,
+   "bbox": [
+    -70,
+    -82.31,
+    70,
+    38.07
+   ]
+  },
+  "texto": {
+   "area": 1022.36,
+   "bbox": [
+    -50.77,
+    -25.83,
+    50.77,
+    25.83
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ },
+ "forma:rect:sin": {
+  "anchoMm": 140,
+  "altoMm": 76,
+  "forma": "rect",
+  "nPalitos": 0,
+  "placa": {
+   "area": 10573.52,
+   "bbox": [
+    -70,
+    -38.07,
+    70,
+    38.07
+   ]
+  },
+  "texto": {
+   "area": 1022.36,
+   "bbox": [
+    -50.77,
+    -25.83,
+    50.77,
+    25.83
+   ]
+  },
+  "motivo": null,
+  "adorno": null,
+  "borde": null,
+  "capas": null
+ }
+}
