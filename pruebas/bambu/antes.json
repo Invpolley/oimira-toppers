@@ -1,0 +1,200 @@
+{
+ "nota": "Entrega 1 (22-11-2026): geometria de hoy con colores asignados, perfil de Polley sin cambios. Laminado con Bambu Studio 02.09.01.70. Es la medida ANTES de la Entrega 2.",
+ "muestras": {
+  "e1-aro": {
+   "ok": true,
+   "error": "Success.",
+   "segundos": 3035,
+   "gramos": 15.36,
+   "capas": 21,
+   "cambiosFilamento": 0,
+   "soportes": false,
+   "avisos": "",
+   "filamentos": [
+    {
+     "id": 1,
+     "color": "#F5F5F5",
+     "gramos": 8.71,
+     "boquilla": "1"
+    },
+    {
+     "id": 2,
+     "color": "#D32F2F",
+     "gramos": 6.66,
+     "boquilla": "0"
+    }
+   ],
+   "partes": [
+    {
+     "nombre": "Placa",
+     "extruder": 1,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Texto",
+     "extruder": 2,
+     "extruderObjeto": 1
+    }
+   ]
+  },
+  "e1-contorno": {
+   "ok": true,
+   "error": "Success.",
+   "segundos": 6085,
+   "gramos": 46.51,
+   "capas": 21,
+   "cambiosFilamento": 7,
+   "soportes": false,
+   "avisos": "",
+   "filamentos": [
+    {
+     "id": 1,
+     "color": "#FDF6EE",
+     "gramos": 35.62,
+     "boquilla": "1"
+    },
+    {
+     "id": 2,
+     "color": "#B44F61",
+     "gramos": 4.46,
+     "boquilla": "0"
+    },
+    {
+     "id": 3,
+     "color": "#D9A066",
+     "gramos": 2.63,
+     "boquilla": "0"
+    },
+    {
+     "id": 4,
+     "color": "#1C1C1C",
+     "gramos": 3.79,
+     "boquilla": "1"
+    }
+   ],
+   "partes": [
+    {
+     "nombre": "Placa",
+     "extruder": 1,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Texto",
+     "extruder": 2,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura",
+     "extruder": 2,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Adorno",
+     "extruder": 3,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Borde",
+     "extruder": 4,
+     "extruderObjeto": 1
+    }
+   ]
+  },
+  "e1-pro": {
+   "ok": true,
+   "error": "Success.",
+   "segundos": 4819,
+   "gramos": 32.24,
+   "capas": 29,
+   "cambiosFilamento": 9,
+   "soportes": false,
+   "avisos": "It seems object topper-feliz has floating regions. Please re-orient the object or enable support generation.",
+   "filamentos": [
+    {
+     "id": 1,
+     "color": "#F5F5F5",
+     "gramos": 22.44,
+     "boquilla": "0"
+    },
+    {
+     "id": 2,
+     "color": "#D32F2F",
+     "gramos": 3.89,
+     "boquilla": "0"
+    },
+    {
+     "id": 3,
+     "color": "#FFFFFF",
+     "gramos": 1.25,
+     "boquilla": "0"
+    },
+    {
+     "id": 4,
+     "color": "#36140C",
+     "gramos": 2.67,
+     "boquilla": "0"
+    },
+    {
+     "id": 5,
+     "color": "#BC7459",
+     "gramos": 0.92,
+     "boquilla": "1"
+    },
+    {
+     "id": 6,
+     "color": "#ECA77E",
+     "gramos": 0.74,
+     "boquilla": "1"
+    },
+    {
+     "id": 7,
+     "color": "#F84342",
+     "gramos": 0.33,
+     "boquilla": "1"
+    }
+   ],
+   "partes": [
+    {
+     "nombre": "Placa",
+     "extruder": 1,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Texto",
+     "extruder": 2,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura capa 1",
+     "extruder": 3,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura capa 2",
+     "extruder": 4,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura capa 3",
+     "extruder": 5,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura capa 4",
+     "extruder": 6,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura capa 5",
+     "extruder": 7,
+     "extruderObjeto": 1
+    },
+    {
+     "nombre": "Figura capa 6",
+     "extruder": 8,
+     "extruderObjeto": 1
+    }
+   ]
+  }
+ }
+}

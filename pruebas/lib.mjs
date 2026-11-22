@@ -15,7 +15,7 @@ export function fin(){
 // Abre la app servida desde `raiz` (por defecto, el repo). Devuelve { page, cerrar, errores }.
 export async function abrirApp(opc){
   const raiz = (opc && opc.raiz) || RAIZ;
-  const srv = await servir(raiz);
+  const srv = (opc && opc.url) ? { url: opc.url, cerrar: () => {} } : await servir(raiz); // opc.url = sitio publicado
   const browser = await chromium.launch(process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY } } : {});
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
   await ctx.route((u) => u.hostname.endsWith(".supabase.co"), (route) => {

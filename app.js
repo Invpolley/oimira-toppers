@@ -940,49 +940,21 @@ function stlBinario(geo){
   return buf;
 }
 
-/* ================= Export: 3MF multiobjeto ================= */
-function geoXml(geo, id, pindex, nombre){
-  var pos = geo.attributes.position, idx = geo.index;
-  var verts = [], seen = {}, order = [], tri = [];
-  function key(x,y,z){ return x.toFixed(3)+","+y.toFixed(3)+","+z.toFixed(3); }
-  function vid(i){
-    var x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i), k = key(x,y,z);
-    if (seen[k] === undefined){ seen[k] = order.length; order.push('<vertex x="'+x.toFixed(3)+'" y="'+y.toFixed(3)+'" z="'+z.toFixed(3)+'"/>'); }
-    return seen[k];
-  }
-  if (idx) for (var i = 0; i < idx.count; i += 3) tri.push('<triangle v1="'+vid(idx.getX(i))+'" v2="'+vid(idx.getX(i+1))+'" v3="'+vid(idx.getX(i+2))+'"/>');
-  else for (var j = 0; j < pos.count; j += 3) tri.push('<triangle v1="'+vid(j)+'" v2="'+vid(j+1)+'" v3="'+vid(j+2)+'"/>');
-  return '<object id="'+id+'" type="model" name="'+nombre+'" pid="1" pindex="'+pindex+'"><mesh><vertices>'+order.join("")+'</vertices><triangles>'+tri.join("")+'</triangles></mesh></object>';
+/* ================= Export: proyecto Bambu (3MF) ================= */
+// Partes del topper para el proyecto Bambu, la placa siempre primero (bambu-3mf.js reparte los filamentos por color).
+function partesParaExportar(){
+  var partes = [];
+  function add(geo, nombre, color){ if (geo) partes.push({ nombre: nombre, color: color, geo: geo }); }
+  add(GEOS.placa, "Placa", $("#c1").value);
+  add(GEOS.texto, "Texto", $("#c2").value);
+  if (GEOS.motivoCapas) GEOS.motivoCapas.forEach(function(c, i){ add(c.geo, "Figura capa " + (i + 1), c.color); });
+  else add(GEOS.motivo, "Figura", $("#c3").value);
+  add(GEOS.adorno, "Adorno", $("#c4").value);
+  add(GEOS.borde, "Borde", $("#c5").value);
+  return partes;
 }
 function construir3mf(){
-  var colores = [$("#c1").value, $("#c2").value, $("#c3").value, $("#c4").value, $("#c5").value];
-  // Capas del motivo PRO: cada capa agrega su propio color a la paleta
-  if (GEOS.motivoCapas) GEOS.motivoCapas.forEach(function(c){ colores.push(c.color); });
-  var partes = [], items = [], objInfo = [], id = 2;
-  [["placa","Placa",0],["texto","Texto",1],["motivo","Motivo",2],["adorno","Adorno",3],["borde","Borde",4]].forEach(function(p){
-    if (GEOS[p[0]]){ partes.push(geoXml(GEOS[p[0]], id, p[2], p[1])); items.push('<item objectid="'+id+'"/>'); objInfo.push({ id: id, nombre: p[1], ext: p[2] + 1 }); id++; }
-  });
-  if (GEOS.motivoCapas){
-    GEOS.motivoCapas.forEach(function(c, i){
-      var matIdx = 5 + i; // despues de las 5 partes fijas
-      partes.push(geoXml(c.geo, id, matIdx, "Motivo capa " + (i+1)));
-      items.push('<item objectid="'+id+'"/>');
-      objInfo.push({ id: id, nombre: "Motivo capa " + (i+1) + " (" + c.color + ")", ext: matIdx + 1 });
-      id++;
-    });
-  }
-  var model = '<?xml version="1.0" encoding="UTF-8"?>' +
-    '<model unit="millimeter" xml:lang="es" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:m="http://schemas.microsoft.com/3dmanufacturing/material/2015/02">' +
-    '<resources><m:basematerials id="1">' + colores.map(function(c,i){ return '<m:base name="Color '+(i+1)+'" displaycolor="'+c+'FF"/>'; }).join("") + '</m:basematerials>' +
-    partes.join("") + '</resources><build>' + items.join("") + '</build></model>';
-  var zip = new JSZip();
-  zip.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="model" ContentType="application/vnd.ms-package.3dmanufacturing-3dmodel+xml"/></Types>');
-  zip.file("_rels/.rels", '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Target="/3D/3dmodel.model" Id="rel0" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/></Relationships>');
-  zip.file("3D/3dmodel.model", model);
-  // Bambu Studio: asignacion de extruder (filamento) por objeto
-  zip.file("Metadata/model_settings.config", '<?xml version="1.0" encoding="UTF-8"?>\n<config>\n' +
-    objInfo.map(function(o){ return '  <object id="' + o.id + '">\n    <metadata key="name" value="' + o.nombre + '"/>\n    <metadata key="extruder" value="' + o.ext + '"/>\n  </object>\n'; }).join("") + '</config>');
-  return zip.generateAsync({ type: "blob", mimeType: "model/3mf", compression: "DEFLATE", compressionOptions: { level: 6 } });
+  return construirProyectoBambu({ titulo: nombreArchivo(""), partes: partesParaExportar(), perfilBase: window.BAMBU_PERFIL, ajustes: window.BAMBU_AJUSTES });
 }
 function nombreArchivo(ext){
   var base = ($("#l1").value.trim() || "topper").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").slice(0,30);
@@ -999,7 +971,7 @@ $("#btn3mf").onclick = async function(){
   msgEl("dlMsg", "Generando 3MF…");
   var blob = await construir3mf();
   descargar(blob, nombreArchivo(".3mf")); EXPORTADO = true;
-  msgEl("dlMsg", "✅ 3MF descargado (" + GEOS.anchoMm + " mm de ancho). Ábrelo en Bambu Studio.");
+  msgEl("dlMsg", "✅ Proyecto descargado (" + GEOS.anchoMm + " mm de ancho). Ábrelo en Bambu Studio: ya trae cada color en su filamento.");
 };
 $("#btnStl").onclick = async function(){
   refrescar();
@@ -1735,12 +1707,15 @@ function abrirExportar(){
   else {
     var cols = ["c1","c2","c3","c4","c5"].map(function(id){ return $("#" + id).value; });
     var partes = [["Placa", !!GEOS.placa, cols[0]], ["Texto", !!GEOS.texto, cols[1]], ["Figura", !!(GEOS.motivo || GEOS.motivoCapas), cols[2]], ["Adorno", !!GEOS.adorno, cols[3]], ["Borde", !!GEOS.borde, cols[4]]].filter(function(p){ return p[1]; });
-    var nCol = GEOS.motivoCapas ? partes.length - 1 + GEOS.motivoCapas.length : partes.length;
+    // filamentos = colores distintos que usa el diseño (lo mismo que va al proyecto Bambu)
+    var fil = filamentosDe(partesParaExportar()), nCol = fil.colores.length;
+    var fuera = fil.colores.filter(function(c){ return !FILAMENTOS.some(function(f){ return colorNorm(f.c) === c; }); });
     var lineas = ["l1","l2","l3"].map(function(id){ return $("#" + id).value.trim(); }).filter(Boolean).join(" · ");
     res.innerHTML = "<b>" + (MODELO_SEL ? MODELO_SEL.nombre : "Diseño libre") + "</b> — " + lineas +
       "<br>Medidas: <b>" + GEOS.anchoMm + " × " + GEOS.altoMm + " mm</b> · grosor " + $("#grosor").value + " mm · relieve " + $("#relieve").value + " mm" +
       "<br>Piezas: " + partes.map(function(p){ return p[0]; }).join(", ") + (GEOS.motivoCapas ? " (figura en " + GEOS.motivoCapas.length + " capas)" : "") +
-      "<br>Colores: <span class=\"pal\">" + partes.map(function(p){ return '<i style="background:' + p[2] + '" title="' + p[0] + '"></i>'; }).join("") + "</span> " + nCol + " filamento" + (nCol === 1 ? "" : "s") +
+      "<br>Colores: <span class=\"pal\">" + fil.colores.map(function(c, i){ return '<i style="background:' + c + '" title="Filamento ' + (i + 1) + '"></i>'; }).join("") + "</span> " + nCol + " filamento" + (nCol === 1 ? "" : "s") +
+      (fuera.length ? "<br>⚠ No está en tus filamentos: <span class=\"pal\">" + fuera.map(function(c){ return '<i style="background:' + c + '" title="' + c + '"></i>'; }).join("") + "</span> Bambu Studio usará el carrete más parecido." : "") +
       ($("#palitos").checked ? "<br>Palitos integrados de " + $("#palLen").value + " mm" : "<br>Sin palitos");
   }
   var r = comprobarUniones(), eu = document.getElementById("expUniones");

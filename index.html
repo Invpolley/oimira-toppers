@@ -363,7 +363,7 @@
     <h2>Revisar y exportar</h2>
     <div class="resumen" id="expResumen"></div>
     <div class="unionesMsg" id="expUniones" style="text-align:left;margin-bottom:10px"></div>
-    <button class="btn" id="btn3mf">⬇️ Descargar 3MF (Bambu Studio)</button>
+    <button class="btn" id="btn3mf">⬇️ Descargar proyecto 3MF (Bambu Studio)</button>
     <button class="btn sec2" id="btnStl" style="margin-top:8px">⬇️ Descargar STLs por color (ZIP)</button>
     <button class="btn sec2" id="btnMail" style="margin-top:8px">📧 Enviar a mi correo</button>
     <div id="dlMsg" class="msg"></div>
@@ -401,6 +401,8 @@
 <script src="motivos-pro-data.js?v=2"></script>
 <script src="adornos-data.js?v=3"></script>
 <script src="modelos-data.js?v=2"></script>
+<script src="bambu-perfil-data.js?v=1"></script>
+<script src="bambu-3mf.js?v=1"></script>
 <script src="app.js?v=33"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js?v=20260913").then(reg=>{ reg.update(); reg.addEventListener("updatefound",()=>{ const w=reg.installing; w&&w.addEventListener("statechange",()=>{ if(w.state==="activated"&&navigator.serviceWorker.controller) location.reload(); }); }); }).catch(()=>{}); });
