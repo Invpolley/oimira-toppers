@@ -554,6 +554,8 @@ function construir(){
 
   // --- placa ---
   var plateShapes, bordeBase = null, nPal = 0;
+  var apoyo = apoyoActual(), palSel = (document.getElementById("palN") || {}).value || "auto";
+  var palX = [], palPed = 0; // centros de los palitos puestos y cuantos se pidieron
   if (forma === "contorno"){
     var margen = Math.max(2.4, anchoMm * 0.024); // placa mas ceñida = look delicado
     var puentes = barrasConectoras(); // sustentan motivo y adorno con un cuello solido
@@ -563,19 +565,35 @@ function construir(){
       bordeBase = plateShapes.slice();
       var cbb = shapesBBox(plateShapes);
       plateWmm = cbb.max.x - cbb.min.x; plateHmm = cbb.max.y - cbb.min.y;
-      if ($("#palitos").checked){
+      if (apoyo === "palitos"){
         var plc = Number($("#palLen").value) || 45, pwc = 6;
         var xs = [];
         plateShapes.forEach(function(s){ s.extractPoints(1).shape.forEach(function(p){ if (p.y < cbb.min.y + 9) xs.push(p.x); }); });
         var xlo = Math.min.apply(null, xs), xhi = Math.max.apply(null, xs);
-        var posiciones = (xhi - xlo) < 26 ? [(xlo + xhi) / 2] : [xlo + (xhi - xlo) * 0.25, xlo + (xhi - xlo) * 0.75];
-        posiciones.forEach(function(px){
-          var fy = fondoEnX(plateShapes, px); if (fy === null) fy = cbb.min.y + 6;
+        var silueta = plateShapes.slice();
+        var autoPal = !(parseInt(palSel, 10) >= 1), puntaY = null;
+        palPed = cantidadPalitos(palSel, (xhi - xlo) < 26 ? 1 : 2);
+        if (!autoPal){
+          // cantidad elegida: se reparten a lo ancho de toda la base (no solo en la parte mas baja), cada palito nace
+          // en el borde inferior real de su x y todas las puntas terminan a la misma altura
+          var anchoSil = cbb.max.x - cbb.min.x;
+          xlo = cbb.min.x + anchoSil * 0.12; xhi = cbb.max.x - anchoSil * 0.12;
+          puntaY = cbb.min.y - plc;
+        }
+        posicionesPalitos(palPed, xlo, xhi).forEach(function(px0){
+          var px = px0, fy = fondoEnX(silueta, px);
+          for (var k = 1; fy === null && k <= 10; k++){ // sin silueta en esa x: se corre a la mas cercana que si
+            if ((fy = fondoEnX(silueta, px0 + k)) !== null) px = px0 + k;
+            else if ((fy = fondoEnX(silueta, px0 - k)) !== null) px = px0 - k;
+          }
+          if (fy === null) fy = cbb.min.y + 6;
+          if (palX.some(function(x){ return Math.abs(x - px) < 8; })) return; // quedaria encimado con otro
           var st = new THREE.Shape();
           st.moveTo(px - pwc / 2, fy + 7); st.lineTo(px + pwc / 2, fy + 7);
-          st.lineTo(px + pwc / 2, fy - plc + 4); st.lineTo(px, fy - plc);
-          st.lineTo(px - pwc / 2, fy - plc + 4); st.closePath();
-          plateShapes.push(st); nPal++;
+          var py = puntaY === null ? fy - plc : puntaY;
+          st.lineTo(px + pwc / 2, py + 4); st.lineTo(px, py);
+          st.lineTo(px - pwc / 2, py + 4); st.closePath();
+          plateShapes.push(st); nPal++; palX.push(px);
         });
       }
     }
@@ -598,15 +616,15 @@ function construir(){
       return new THREE.Shape(p.map(function(q){ return new THREE.Vector2(q.X / CLIP_ESC, q.Y / CLIP_ESC); }));
     });
     bordeBase = plateShapes.slice();
-    if ($("#palitos").checked && lineInfo.length){
+    if (apoyo === "palitos" && lineInfo.length){
       var plL = Number($("#palLen").value) || 45;
       var last = lineInfo[lineInfo.length - 1];
       var topP = last.base + 1;
       [motMm, adMm].forEach(function(arr){
         if (arr.length){ var eb2 = shapesBBox(arr); if (eb2.min.y < topP - 3) topP = eb2.min.y + 2; }
       });
-      var pxs = last.hw > 16 ? [-last.hw * 0.5, last.hw * 0.5] : [0];
-      pxs.forEach(function(px){ plateShapes.push(palito(px, topP, plL)); nPal++; });
+      palPed = cantidadPalitos(palSel, last.hw > 16 ? 2 : 1);
+      posicionesPalitos(palPed, -last.hw, last.hw).forEach(function(px){ plateShapes.push(palito(px, topP, plL)); nPal++; palX.push(px); });
     }
     var bb4 = shapesBBox(plateShapes);
     plateWmm = bb4.max.x - bb4.min.x; plateHmm = bb4.max.y - bb4.min.y;
@@ -625,11 +643,12 @@ function construir(){
       plateShapes.push(barra(-half, li.base + 0.5, half, li.base + 3.4));
     });
     barrasConectoras().forEach(function(b){ plateShapes.push(b); });
-    if ($("#palitos").checked){
+    if (apoyo === "palitos"){
       var plA = Number($("#palLen").value) || 45;
-      [-R * 0.35, R * 0.35].forEach(function(px){
+      palPed = cantidadPalitos(palSel, 2);
+      posicionesPalitos(palPed, -R * 0.7, R * 0.7).forEach(function(px){
         var top = -Math.sqrt(Math.max(0, R * R - px * px)) + 7;
-        plateShapes.push(palito(px, top, plA)); nPal++;
+        plateShapes.push(palito(px, top, plA)); nPal++; palX.push(px);
       });
     }
     plateWmm = 2 * R; plateHmm = 2 * R;
@@ -649,18 +668,24 @@ function construir(){
   plateShapes = [plate];
   bordeBase = plateShapes.slice();
   // palitos
-  if ($("#palitos").checked){
+  if (apoyo === "palitos"){
     var pl = Number($("#palLen").value) || 45, pw = 6;
     var yBottom = -plateHmm / 2 * (forma === "ovalo" ? 0.75 : 0.98);
-    [-plateWmm * 0.26, plateWmm * 0.26].forEach(function(px){
+    palPed = cantidadPalitos(palSel, 2);
+    posicionesPalitos(palPed, -plateWmm * 0.52, plateWmm * 0.52).forEach(function(px){
+      var yTop = yBottom + 6;
+      if (forma === "ovalo"){ // hacia los lados el ovalo sube: el palito nace 6 mm dentro del borde real
+        var fr = 1 - Math.pow(px / (plateWmm / 2), 2);
+        yTop = Math.max(yTop, -plateHmm / 2 * 1.06 * Math.sqrt(Math.max(0, fr)) + 6);
+      }
       var st = new THREE.Shape();
-      st.moveTo(px - pw / 2, yBottom + 6);
-      st.lineTo(px + pw / 2, yBottom + 6);
+      st.moveTo(px - pw / 2, yTop);
+      st.lineTo(px + pw / 2, yTop);
       st.lineTo(px + pw / 2, yBottom - pl + 4);
       st.lineTo(px, yBottom - pl); // punta
       st.lineTo(px - pw / 2, yBottom - pl + 4);
       st.closePath();
-      plateShapes.push(st); nPal++;
+      plateShapes.push(st); nPal++; palX.push(px);
     });
   }
   }
@@ -717,7 +742,7 @@ function construir(){
     });
   }
   // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
-  var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal };
+  var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal, palitosX: palX, palPedidos: palPed };
   return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
            anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2 };
 }
@@ -771,6 +796,12 @@ function refrescar(){
   var med = document.getElementById("medidaTxt");
   if (med) med.textContent = b.anchoMm + " × " + b.altoMm + " mm";
   var um = document.getElementById("unionesMsg"); if (um){ um.textContent = ""; um.className = "unionesMsg"; }
+  var am = document.getElementById("apoyoMsg");
+  if (am){
+    var faltan = b.d2.palPedidos > b.d2.nPalitos;
+    am.textContent = faltan ? (b.d2.nPalitos === 1 ? "Solo cabe 1 palito" : "Solo caben " + b.d2.nPalitos + " palitos") + " en este diseño." : "";
+    am.className = "msg" + (faltan ? " err" : "");
+  }
 }
 function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render(scene, cam); }
 
@@ -826,8 +857,19 @@ document.getElementById("btnCentrar").onclick = function(){
   refrescar();
 };
 
+// Apoyo elegido: "palitos" (torta) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
+function apoyoActual(){
+  var el = document.getElementById("apoyo");
+  return el && el.value ? el.value : ($("#palitos").checked ? "palitos" : "ninguno");
+}
+function pintarApoyo(){
+  var a = apoyoActual();
+  $("#palitos").checked = (a === "palitos");
+  ["campoPalN", "campoPalLen"].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = (a === "palitos") ? "" : "none"; });
+}
+document.getElementById("apoyo").addEventListener("change", pintarApoyo);
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(function(){ refrescar(); registrarEstado(); pintarPasos(); }, 350); }
-["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","palitos","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
+["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","apoyo","palN","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
@@ -1231,10 +1273,10 @@ document.getElementById("btnAddFil").onclick = async function(){
 /* ================= Bocetos por cliente (guardar / continuar) ================= */
 var BOCETO = null; // { id, cliente, telefono } del boceto abierto
 function estadoDiseno(){
-  var ids = ["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","c1","c2","c3","c4","c5"];
+  var ids = ["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","apoyo","palN","profColor","c1","c2","c3","c4","c5"];
   var o = { campos: {} };
   ids.forEach(function(id){ var el = document.getElementById(id); if (el) o.campos[id] = el.value; });
-  o.palitos = $("#palitos").checked;
+  o.palitos = apoyoActual() === "palitos"; // campo viejo: lo siguen leyendo las versiones anteriores de la app
   o.bordeOn = document.getElementById("bordeOn") ? $("#bordeOn").checked : false;
   o.motivo = MOTIVO_SEL ? { nombre: MOTIVO_SEL.nombre, tema: MOTIVO_SEL.tema || null, estilo: MOTIVO_SEL.estilo || null, paths: MOTIVO_SEL.paths || null, detalles: MOTIVO_SEL.detalles || null, capas: MOTIVO_SEL.capas || null } : null;
   o.modelo = MODELO_SEL ? MODELO_SEL.id : null;
@@ -1246,7 +1288,13 @@ function estadoDiseno(){
 function aplicarDiseno(o, sinRefrescar){
   Object.keys(o.campos || {}).forEach(function(id){ var el = document.getElementById(id); if (el) el.value = o.campos[id]; });
   if (o.modelo !== undefined){ MODELO_SEL = (window.MODELOS || []).filter(function(m){ return m.id === o.modelo; })[0] || null; }
-  $("#palitos").checked = !!o.palitos;
+  // Diseños guardados antes de existir el selector de apoyo: palitos:true = Palitos/Auto, palitos:false = Sin apoyo.
+  // Se asigna siempre, para no heredar el apoyo del diseño que estaba en pantalla.
+  var cpA = o.campos || {};
+  if (cpA.apoyo === undefined || !$("#apoyo").value) $("#apoyo").value = o.palitos ? "palitos" : "ninguno";
+  if (cpA.palN === undefined || !$("#palN").value) $("#palN").value = "auto";
+  var pcEl = document.getElementById("profColor"); if (pcEl && cpA.profColor === undefined) pcEl.value = "1.0";
+  pintarApoyo();
   if (document.getElementById("bordeOn")) $("#bordeOn").checked = !!o.bordeOn;
   MOTIVO_SEL = o.motivo || null;
   if (MOTIVO_SEL){
@@ -1716,7 +1764,7 @@ function abrirExportar(){
       "<br>Piezas: " + partes.map(function(p){ return p[0]; }).join(", ") + (GEOS.motivoCapas ? " (figura en " + GEOS.motivoCapas.length + " capas)" : "") +
       "<br>Colores: <span class=\"pal\">" + fil.colores.map(function(c, i){ return '<i style="background:' + c + '" title="Filamento ' + (i + 1) + '"></i>'; }).join("") + "</span> " + nCol + " filamento" + (nCol === 1 ? "" : "s") +
       (fuera.length ? "<br>⚠ No está en tus filamentos: <span class=\"pal\">" + fuera.map(function(c){ return '<i style="background:' + c + '" title="' + c + '"></i>'; }).join("") + "</span> Bambu Studio usará el carrete más parecido." : "") +
-      ($("#palitos").checked ? "<br>Palitos integrados de " + $("#palLen").value + " mm" : "<br>Sin palitos");
+      (GEOS.d2.nPalitos ? "<br>" + GEOS.d2.nPalitos + " palito" + (GEOS.d2.nPalitos === 1 ? " integrado" : "s integrados") + " de " + $("#palLen").value + " mm" : "<br>Sin apoyo");
   }
   var r = comprobarUniones(), eu = document.getElementById("expUniones");
   eu.textContent = GEOS && GEOS.placa ? r.txt : ""; eu.className = "unionesMsg " + (r.ok ? "ok" : "warn");

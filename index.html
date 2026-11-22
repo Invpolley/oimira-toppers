@@ -304,9 +304,20 @@
           <div class="field"><label>Relieve</label><input id="relieve" type="number" value="1.2" min="0.6" max="3" step="0.2" /></div>
         </div>
         <div class="row">
-          <div class="field"><label class="chk"><input type="checkbox" id="palitos" checked /> Palitos integrados</label></div>
-          <div class="field"><label>Largo palitos</label><input id="palLen" type="number" value="45" min="20" max="90" /></div>
+          <div class="field"><label>Apoyo</label>
+            <select id="apoyo">
+              <option value="palitos" selected>Palitos (torta)</option>
+              <option value="ninguno">Sin apoyo</option>
+            </select></div>
+          <div class="field" id="campoPalN"><label>Cantidad</label>
+            <select id="palN">
+              <option value="auto" selected>Auto</option>
+              <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option>
+            </select></div>
+          <div class="field" id="campoPalLen"><label>Largo mm</label><input id="palLen" type="number" value="45" min="20" max="90" /></div>
         </div>
+        <input type="checkbox" id="palitos" checked hidden />
+        <div id="apoyoMsg" class="msg"></div>
         <div class="field"><label class="chk"><input type="checkbox" id="bordeOn" /> Borde de color en la placa</label></div>
       </details>
 
@@ -403,6 +414,7 @@
 <script src="modelos-data.js?v=2"></script>
 <script src="bambu-perfil-data.js?v=1"></script>
 <script src="bambu-3mf.js?v=1"></script>
+<script src="apoyos.js?v=1"></script>
 <script src="app.js?v=33"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js?v=20260913").then(reg=>{ reg.update(); reg.addEventListener("updatefound",()=>{ const w=reg.installing; w&&w.addEventListener("statechange",()=>{ if(w.state==="activated"&&navigator.serviceWorker.controller) location.reload(); }); }); }).catch(()=>{}); });
