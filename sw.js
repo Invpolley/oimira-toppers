@@ -1,8 +1,8 @@
 // SW resiliente (PROTOCOLO PWA RESILIENTE, 2026-09-13). Network-first: guarda la cáscara para abrir sin internet
 // y NUNCA guarda ni muestra un 502/503/504 del hosting si hay copia buena. Datos (Supabase) nunca pasan por caché.
-const CACHE = "toppers-v17";
+const CACHE = "toppers-v18";
 const PREFIJO = "toppers"; // solo se borran cachés viejas de ESTA app (en GitHub Pages varias apps comparten origen)
-const ASSETS = ["./","./index.html","./app.js","./apoyos.js","./bambu-3mf.js","./bambu-perfil-data.js","./config.js","./manifest.json","./icons/icon-192.png","./icons/icon-512.png","./adornos-data.js","./modelos-data.js","./motivos-data.js","./motivos-pro-data.js"];
+const ASSETS = ["./","./index.html","./app.js","./apoyos.js","./bambu-3mf.js","./bambu-perfil-data.js","./piezas.js","./config.js","./manifest.json","./icons/icon-192.png","./icons/icon-512.png","./adornos-data.js","./modelos-data.js","./motivos-data.js","./motivos-pro-data.js"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS).catch(() => {})).then(() => self.skipWaiting()));

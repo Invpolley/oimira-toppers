@@ -16,7 +16,7 @@ function Leer-Entrada($zip, $nombre){
   $r = New-Object System.IO.StreamReader($e.Open(), [System.Text.Encoding]::UTF8)
   try { return $r.ReadToEnd() } finally { $r.Close() }
 }
-$res = [ordered]@{ ok = $false; error = ""; segundos = 0; gramos = 0; capas = 0; cambiosFilamento = 0; soportes = $false; avisos = ""; filamentos = @(); partes = @() }
+$res = [ordered]@{ ok = $false; error = ""; segundos = 0; gramos = 0; gramosPurga = 0; capas = 0; cambiosFilamento = 0; soportes = $false; avisos = ""; tiempos = @{}; filamentos = @(); partes = @() }
 try {
   New-Item -ItemType Directory -Force $Salida | Out-Null
   Get-ChildItem $Salida -File | Where-Object { $_.Name -in "result.json","resultado.json","laminado.3mf","plate_1.gcode" } | Remove-Item -Force
@@ -37,6 +37,8 @@ try {
   $res.segundos = [int][math]::Round($pl.total_predication)
   $res.cambiosFilamento = [int]$pl.filament_change_times
   $res.avisos = [string]$pl.warning_message
+  $tt = [ordered]@{}; foreach ($pp in $pl.feature_type_times.PSObject.Properties) { $tt[$pp.Name] = [int][math]::Round($pp.Value) }; $res.tiempos = $tt
+  $purga = 0.0; foreach ($f in $pl.filaments) { $purga += ([double]$f.total_used_g - [double]$f.main_used_g) }; $res.gramosPurga = [math]::Round($purga, 2)
   $zip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $Salida "laminado.3mf"))
   try {
     [xml]$si = Leer-Entrada $zip "Metadata/slice_info.config"
@@ -53,7 +55,9 @@ try {
       $ob.part | ForEach-Object {
         $pt = $_
         $ext = ($pt.metadata | Where-Object { $_.key -eq "extruder" }).value
-        [ordered]@{ nombre = ($pt.metadata | Where-Object { $_.key -eq "name" }).value; extruder = $(if ($ext) { [int]$ext } else { $null }); extruderObjeto = $(if ($extOb) { [int]$extOb } else { $null }) }
+        $st = $pt.mesh_stat
+        $rep = 0; foreach ($k in "edges_fixed","degenerate_facets","facets_removed","facets_reversed","backwards_edges") { $rep += [int]$st.$k }
+        [ordered]@{ nombre = ($pt.metadata | Where-Object { $_.key -eq "name" }).value; extruder = $(if ($ext) { [int]$ext } else { $null }); extruderObjeto = $(if ($extOb) { [int]$extOb } else { $null }); caras = [int]$st.face_count; reparaciones = $rep }
       }
     })
   } finally { $zip.Dispose() }

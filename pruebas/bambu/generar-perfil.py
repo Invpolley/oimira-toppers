@@ -20,6 +20,6 @@ sal = ("// OiMira Toppers - plantilla del proyecto Bambu (generado por pruebas/b
        "// Claves que se repiten al agregar filamentos: una vez por filamento / un trio (3 variantes de extrusor) por filamento.\n"
        "window.BAMBU_CLAVES = " + json.dumps({"porFilamento": por_fil, "porFilamentoVariante": por_var}, separators=(",", ":")) + ";\n"
        "// Ajustes de impresion que se aplican encima de la plantilla (los decide la medicion de tiempo, Tarea 10).\n"
-       "window.BAMBU_AJUSTES = {};\n")
+       "window.BAMBU_AJUSTES = {};\n")  # OJO: en el .js publicado BAMBU_AJUSTES se edito a mano (capa 0,25)
 open(os.path.join(aqui, "..", "..", "bambu-perfil-data.js"), "w", encoding="utf-8").write(sal)
 print(len(por_fil), len(por_var))

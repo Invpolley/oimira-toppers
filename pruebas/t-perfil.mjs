@@ -15,7 +15,7 @@ const igual = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 // 1 color: igual a la base
 const u = ctx.expandirPerfil(B, ["#00AE42"], {});
-ok(Object.keys(B).every((k) => igual(u[k], B[k])) && Object.keys(u).length === Object.keys(B).length, "1 color: idéntico a la plantilla");
+ok(Object.keys(B).every((k) => igual(u[k], B[k])) && Object.keys(u).length === Object.keys(B).length + 2, "1 color: idéntico a la plantilla (más different_settings_to_system e inherits_group)");
 ok(u !== B && u.filament_colour !== B.filament_colour, "no modifica la plantilla (copia)");
 
 // 4 colores
@@ -51,4 +51,9 @@ ok(e.flush_volumes_matrix.every((x) => /^\d+$/.test(x)), "valores enteros como t
 // ajustes encima
 const a = ctx.expandirPerfil(B, C4, { layer_height: "0.25" });
 ok(a.layer_height === "0.25" && B.layer_height === "0.2", "los ajustes se aplican al final sin tocar la plantilla");
+// Bambu Studio marca qué ajustes difieren del perfil del sistema: [proceso, un hueco por filamento, impresora]
+const a2 = ctx.expandirPerfil(B, C4, { layer_height: "0.25", initial_layer_print_height: "0.25" });
+ok(igual(a2.different_settings_to_system, ["layer_height;initial_layer_print_height", "", "", "", "", ""]), "los ajustes cambiados se declaran en different_settings_to_system (proceso): " + JSON.stringify(a2.different_settings_to_system));
+ok(igual(a2.inherits_group, ["", "", "", "", "", ""]), "inherits_group con N+2 huecos");
+ok(igual(e.different_settings_to_system, ["", "", "", "", "", ""]) && igual(u.different_settings_to_system, ["", "", ""]), "sin ajustes: N+2 huecos vacíos (igual que al guardar desde Bambu Studio)");
 fin();

@@ -1,10 +1,12 @@
-// Guarda proyectos 3MF de muestra (los que se laminan con el Bambu Studio real). Uso: node pruebas/exportar-muestras.mjs <carpeta> [prefijo]
+// Guarda proyectos 3MF de muestra (los que se laminan con el Bambu Studio real).
+// Uso: node pruebas/exportar-muestras.mjs <carpeta> [prefijo] [relieve] ['{"ajuste":"valor"}']
 import fs from "node:fs"; import path from "node:path";
 import { abrirApp, aplicar, aplicarModeloId, disenoForma } from "./lib.mjs";
-const DIR = process.argv[2], PRE = process.argv[3] || "";
+const DIR = process.argv[2], PRE = process.argv[3] || "", REL = process.argv[4] || "1.0", AJ = process.argv[5] ? JSON.parse(process.argv[5]) : null;
 if (!DIR){ console.log("falta la carpeta de salida"); process.exit(1); }
 fs.mkdirSync(DIR, { recursive: true });
 const { page, cerrar } = await abrirApp();
+if (AJ) await page.evaluate((a) => { window.BAMBU_AJUSTES = a; }, AJ); // ajustes de impresión a probar
 async function guardar(nombre){
   const b64 = await page.evaluate(async () => {
     const blob = await construir3mf(), buf = new Uint8Array(await blob.arrayBuffer());
@@ -17,13 +19,13 @@ async function guardar(nombre){
 }
 // 1) contorno con figura, adorno y borde (parecido al topper de referencia de Polley)
 await aplicarModeloId(page, "mariposas-boutique");
-await page.evaluate(() => { $("#bordeOn").checked = true; refrescar(); });
+await page.evaluate((rel) => { $("#bordeOn").checked = true; $("#relieve").value = rel; refrescar(); }, REL);
 await guardar("contorno");
 // 2) aro
-await aplicar(page, disenoForma("aro", true, { campos: { c3: "#1565c0" } }));
+await aplicar(page, disenoForma("aro", true, { campos: { c3: "#1565c0", relieve: REL } }));
 await guardar("aro");
 // 3) figura PRO en capas
 const pro = await page.evaluate(() => { const m = (window.MOTIVOS_PRO || []).filter((x) => x.capas && x.capas.length > 1)[0]; return m ? buscarMotivo(m.nombre) : null; });
-await aplicar(page, disenoForma("contorno", true, { raiz: { motivo: pro } }));
+await aplicar(page, disenoForma("contorno", true, { campos: { relieve: REL }, raiz: { motivo: pro } }));
 await guardar("pro");
 await cerrar();

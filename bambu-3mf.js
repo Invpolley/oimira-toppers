@@ -60,7 +60,13 @@ function expandirPerfil(perfilBase, colores, ajustes){
     for (var a = 0; a < n; a++) for (var b = 0; b < n; b++) m.push(a === b ? "0" : String(volumenPurga(cols[a], cols[b], vb)));
   });
   p.flush_volumes_matrix = m;
-  Object.keys(ajustes || {}).forEach(function(k){ p[k] = ajustes[k]; });
+  // Ajustes de proceso encima de la plantilla. Bambu Studio parte del perfil del sistema (print_settings_id) y solo
+  // respeta los cambios que se declaran en different_settings_to_system: [proceso, un hueco por filamento, impresora].
+  var cambiados = Object.keys(ajustes || {});
+  cambiados.forEach(function(k){ p[k] = ajustes[k]; });
+  var huecos = []; for (var h = 0; h < n + 2; h++) huecos.push("");
+  p.different_settings_to_system = huecos.slice(); p.different_settings_to_system[0] = cambiados.join(";");
+  p.inherits_group = huecos.slice();
   return p;
 }
 

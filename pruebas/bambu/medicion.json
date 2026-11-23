@@ -1,0 +1,210 @@
+{
+ "nota": "Medicion del 23-11-2026 con Bambu Studio 02.09.01.70 (PC de Polley, modo comandos). A = geometria anterior, relieve 1,2, perfil de Polley. B12 = geometria nueva (regla de color 1 mm), relieve 1,2. B = geometria nueva, relieve 1,0. C = B + capa 0,25. D = C + purgar en el relleno.",
+ "variantes": {
+  "A": {
+   "aro": {
+    "ok": true,
+    "segundos": 3035,
+    "gramos": 15.36,
+    "gramosPurga": 1.44,
+    "capas": 21,
+    "cambiosFilamento": 0,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 2,
+    "partes": 2,
+    "reparaciones": 0
+   },
+   "contorno": {
+    "ok": true,
+    "segundos": 6085,
+    "gramos": 46.51,
+    "gramosPurga": 4.5,
+    "capas": 21,
+    "cambiosFilamento": 7,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 4,
+    "partes": 5,
+    "reparaciones": 0
+   },
+   "pro": {
+    "ok": true,
+    "segundos": 4819,
+    "gramos": 32.24,
+    "gramosPurga": 5.33,
+    "capas": 29,
+    "cambiosFilamento": 9,
+    "soportes": false,
+    "avisos": "It seems object topper-feliz has floating regions. Please re-orient the object or enable support generation.",
+    "filamentos": 7,
+    "partes": 8,
+    "reparaciones": 0
+   }
+  },
+  "B12": {
+   "aro": {
+    "ok": true,
+    "segundos": 2553,
+    "gramos": 14.28,
+    "gramosPurga": 0.67,
+    "capas": 21,
+    "cambiosFilamento": 0,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 2,
+    "partes": 2,
+    "reparaciones": 0
+   },
+   "contorno": {
+    "ok": true,
+    "segundos": 5956,
+    "gramos": 45.95,
+    "gramosPurga": 3.95,
+    "capas": 21,
+    "cambiosFilamento": 6,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 4,
+    "partes": 5,
+    "reparaciones": 0
+   },
+   "pro": {
+    "ok": true,
+    "segundos": 5765,
+    "gramos": 35.24,
+    "gramosPurga": 9.84,
+    "capas": 28,
+    "cambiosFilamento": 15,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 6,
+    "partes": 8,
+    "reparaciones": 0
+   }
+  },
+  "B": {
+   "aro": {
+    "ok": true,
+    "segundos": 2506,
+    "gramos": 13.98,
+    "gramosPurga": 0.64,
+    "capas": 20,
+    "cambiosFilamento": 0,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 2,
+    "partes": 2,
+    "reparaciones": 0
+   },
+   "contorno": {
+    "ok": true,
+    "segundos": 5728,
+    "gramos": 44.74,
+    "gramosPurga": 3.89,
+    "capas": 20,
+    "cambiosFilamento": 6,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 4,
+    "partes": 5,
+    "reparaciones": 0
+   },
+   "pro": {
+    "ok": true,
+    "segundos": 5826,
+    "gramos": 35.7,
+    "gramosPurga": 10.61,
+    "capas": 28,
+    "cambiosFilamento": 16,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 6,
+    "partes": 8,
+    "reparaciones": 0
+   }
+  },
+  "C": {
+   "aro": {
+    "ok": true,
+    "segundos": 2242,
+    "gramos": 14.38,
+    "gramosPurga": 0.57,
+    "capas": 16,
+    "cambiosFilamento": 0,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 2,
+    "partes": 2,
+    "reparaciones": 0
+   },
+   "contorno": {
+    "ok": true,
+    "segundos": 5274,
+    "gramos": 48.69,
+    "gramosPurga": 3.35,
+    "capas": 16,
+    "cambiosFilamento": 5,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 4,
+    "partes": 5,
+    "reparaciones": 0
+   },
+   "pro": {
+    "ok": true,
+    "segundos": 5145,
+    "gramos": 36.48,
+    "gramosPurga": 8.57,
+    "capas": 23,
+    "cambiosFilamento": 13,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 6,
+    "partes": 8,
+    "reparaciones": 0
+   }
+  },
+  "D": {
+   "aro": {
+    "ok": true,
+    "segundos": 2242,
+    "gramos": 14.38,
+    "gramosPurga": 0.57,
+    "capas": 16,
+    "cambiosFilamento": 0,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 2,
+    "partes": 2,
+    "reparaciones": 0
+   },
+   "contorno": {
+    "ok": true,
+    "segundos": 5274,
+    "gramos": 48.69,
+    "gramosPurga": 3.35,
+    "capas": 16,
+    "cambiosFilamento": 5,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 4,
+    "partes": 5,
+    "reparaciones": 0
+   },
+   "pro": {
+    "ok": true,
+    "segundos": 5134,
+    "gramos": 36.43,
+    "gramosPurga": 8.52,
+    "capas": 23,
+    "cambiosFilamento": 13,
+    "soportes": false,
+    "avisos": "",
+    "filamentos": 6,
+    "partes": 8,
+    "reparaciones": 0
+   }
+  }
+ }
+}

@@ -13,7 +13,7 @@ const leer3mf = () => page.evaluate(async () => {
   const ps = JSON.parse(await zip.file("Metadata/project_settings.config").async("string"));
   const partes = Array.from(ms.getElementsByTagName("part")).map((p) => ({ nombre: meta(p, "name"), ext: +meta(p, "extruder") }));
   const esperadas = GEOS.piezas.length; // una parte por pieza de impresión
-  return { partes, esperadas, colores: ps.filament_colour, titulo: meta(ms.getElementsByTagName("object")[0], "name"), b64: null };
+  return { partes, esperadas, colores: ps.filament_colour, titulo: meta(ms.getElementsByTagName("object")[0], "name"), capa: ps.layer_height, capa1: ps.initial_layer_print_height, dif: ps.different_settings_to_system, proceso: ps.print_settings_id };
 });
 const resumen = async () => { await page.evaluate(() => abrirExportar()); return page.evaluate(() => ({ html: document.getElementById("expResumen").innerHTML, txt: document.getElementById("expResumen").textContent, muestras: document.querySelectorAll("#expResumen .pal")[0].querySelectorAll("i").length, fuera: document.querySelectorAll("#expResumen .pal").length > 1 ? document.querySelectorAll("#expResumen .pal")[1].querySelectorAll("i").length : 0 })); };
 
@@ -26,6 +26,8 @@ ok(JSON.stringify(r.partes.map((p) => p.nombre)) === JSON.stringify(["Placa", "T
 ok(JSON.stringify(r.colores) === JSON.stringify(["#FDF6EE", "#B44F61", "#D9A066"]), "filamentos = colores distintos, placa primero: " + r.colores.join(","));
 ok(JSON.stringify(r.partes.map((p) => p.ext)) === JSON.stringify([1, 2, 2, 3]), "texto y figura comparten filamento: " + r.partes.map((p) => p.ext).join(","));
 ok(r.titulo === "topper-mis-15", "título del proyecto: " + r.titulo);
+// ajuste de impresión medido (Tarea 10): capa de 0,25 mm (divide exacto 1 mm de color y 3 mm de placa)
+ok(r.capa === "0.25" && r.capa1 === "0.25" && r.dif[0] === "layer_height;initial_layer_print_height" && r.proceso === "0.20mm Standard @BBL H2D", "el proyecto pide capa de 0,25 mm sobre el perfil de Polley: " + r.capa + " / " + r.dif[0]);
 let s = await resumen();
 ok(/3 filamentos/.test(s.txt) && s.muestras === 3, "resumen: 3 filamentos y 3 muestras de color (" + s.muestras + ")");
 ok(/no está en tus filamentos/i.test(s.txt) && s.fuera === 3, "avisa que hay colores fuera de la paleta de la tienda");
