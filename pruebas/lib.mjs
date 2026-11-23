@@ -17,7 +17,7 @@ export async function abrirApp(opc){
   const raiz = (opc && opc.raiz) || RAIZ;
   const srv = (opc && opc.url) ? { url: opc.url, cerrar: () => {} } : await servir(raiz); // opc.url = sitio publicado
   const browser = await chromium.launch(process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY } } : {});
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block" });
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 }, serviceWorkers: "block", deviceScaleFactor: (opc && opc.escala) || 1 });
   await ctx.route((u) => u.hostname.endsWith(".supabase.co"), (route) => {
     const post = route.request().method() !== "GET";
     route.fulfill({ status: 200, contentType: "application/json", body: post ? "{}" : "[]" });

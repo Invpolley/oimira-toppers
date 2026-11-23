@@ -770,6 +770,27 @@ scene.add(new THREE.AmbientLight(0xffffff, 0.75));
 var dl = new THREE.DirectionalLight(0xffffff, 0.7); dl.position.set(60, -80, 120); scene.add(dl);
 var dl2 = new THREE.DirectionalLight(0xffffff, 0.3); dl2.position.set(-60, 40, 60); scene.add(dl2);
 var grupo = new THREE.Group(); scene.add(grupo);
+// Mesa: con un apoyo de mesa la vista muestra el topper PARADO sobre ella (con palitos se ve acostado, como siempre).
+var mesa = new THREE.Mesh(new THREE.CircleGeometry(1, 72), new THREE.MeshStandardMaterial({ color: 0x8f6f52, roughness: 0.95, metalness: 0 })); // madera: contrasta con una placa clara
+mesa.visible = false; scene.add(mesa);
+var PARADO = false;
+var TIP_ACOSTADO = "Arrastra el motivo o adorno para moverlo · arrastra el fondo para girar";
+var TIP_PARADO = "Así queda parado en la mesa · arrastra el fondo para girarlo y verlo de lado";
+function pintarPostura(b){
+  var parado = !!(b && b.apoyo);
+  if (parado){
+    // el eje "arriba" de la placa pasa a ser el de la escena y el frente mira a la cámara; el borde de abajo toca la mesa
+    grupo.rotation.set(Math.PI / 2, 0, 0);
+    grupo.position.set(0, b.apoyo.grosor / 2, -b.apoyo.yBase);
+    var r = Math.max(110, b.anchoMm * 0.8);
+    mesa.scale.set(r, r, 1); mesa.position.set(0, -6, -0.2);
+  } else {
+    grupo.rotation.set(0, 0, 0); grupo.position.set(0, 0, 0);
+  }
+  mesa.visible = parado;
+  var tip = document.querySelector(".canvas-tip"); if (tip) tip.textContent = parado ? TIP_PARADO : TIP_ACOSTADO;
+  if (parado !== PARADO){ PARADO = parado; encuadrar(); } // al cambiar de postura se vuelve a encuadrar
+}
 
 function tamCanvas(){
   var w = canvas.clientWidth || canvas.parentElement.clientWidth, h = canvas.clientHeight || 480;
@@ -801,6 +822,7 @@ function refrescar(){
     m.userData.rol = pz.rol;
     grupo.add(m);
   });
+  pintarPostura(b);
   var med = document.getElementById("medidaTxt");
   if (med) med.textContent = b.anchoMm + " × " + b.altoMm + " mm";
   var um = document.getElementById("unionesMsg"); if (um){ um.textContent = ""; um.className = "unionesMsg"; }
@@ -817,6 +839,12 @@ function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render
 var _rayo = new THREE.Raycaster(), _pt = new THREE.Vector2();
 var _planoZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 var _arr = null; // { mallas, tipo, inicio }
+// Punto del rayo sobre el plano de la placa, en coordenadas de la placa (sirve acostado y parado).
+function puntoEnPlaca(p){
+  grupo.updateMatrixWorld(true);
+  var rayo = _rayo.ray.clone().applyMatrix4(new THREE.Matrix4().copy(grupo.matrixWorld).invert());
+  return rayo.intersectPlane(_planoZ, p);
+}
 // Que se arrastra al tomar una malla: "m" = la figura (plana o en capas), "a" = el adorno, null = nada.
 function tipoArrastre(m){
   var rol = m.userData && m.userData.rol;
@@ -836,7 +864,7 @@ canvas.addEventListener("pointerdown", function(ev){
   var hit = _rayo.intersectObjects(cands)[0];
   if (!hit) return;
   var p = new THREE.Vector3();
-  if (!_rayo.ray.intersectPlane(_planoZ, p)) return;
+  if (!puntoEnPlaca(p)) return;
   var tipo = tipoArrastre(hit.object);
   _arr = { mallas: grupo.children.filter(function(m){ return tipoArrastre(m) === tipo; }), tipo: tipo, inicio: p.clone() };
   controls.enabled = false;
@@ -846,7 +874,7 @@ canvas.addEventListener("pointermove", function(ev){
   if (!_arr) return;
   _puntero(ev);
   var p = new THREE.Vector3();
-  if (!_rayo.ray.intersectPlane(_planoZ, p)) return;
+  if (!puntoEnPlaca(p)) return;
   _arr.mallas.forEach(function(m){ m.position.x = p.x - _arr.inicio.x; m.position.y = p.y - _arr.inicio.y; });
 });
 function _soltar(){
@@ -1720,10 +1748,16 @@ document.addEventListener("keydown", function(e){
 /* ================= Encuadre y vista frontal ================= */
 function encuadrar(){
   var d = Math.max(170, (GEOS ? Math.max(GEOS.anchoMm, GEOS.altoMm) : 140) * 1.45);
+  if (PARADO && GEOS){ // de pie sobre la mesa: se mira un poco de lado y desde arriba, para que se vea el apoyo
+    var dp = Math.max(220, Math.max(GEOS.anchoMm, GEOS.altoMm) * 1.9);
+    cam.position.set(dp * 0.45, -dp * 0.9, GEOS.altoMm * 0.75); controls.target.set(0, 0, GEOS.altoMm * 0.48); controls.update();
+    return;
+  }
   cam.position.set(0, -d * 0.55, d * 0.9); controls.target.set(0, 0, 0); controls.update();
 }
 document.getElementById("btnFrontal").onclick = function(){
   var d = Math.max(160, (GEOS ? Math.max(GEOS.anchoMm, GEOS.altoMm) : 140) * 1.55);
+  if (PARADO && GEOS){ var df = Math.max(220, Math.max(GEOS.anchoMm, GEOS.altoMm) * 1.9); cam.position.set(0, -df, GEOS.altoMm / 2); controls.target.set(0, 0, GEOS.altoMm / 2); controls.update(); return; }
   cam.position.set(0, -d * 0.12, d); controls.target.set(0, 0, 0); controls.update();
 };
 

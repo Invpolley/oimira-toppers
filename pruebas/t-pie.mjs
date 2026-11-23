@@ -76,6 +76,32 @@ for (const forma of FORMAS){
   ok(r.partes[0] === "Placa=1" && r.partes.includes("Pies=1"), forma + ": el proyecto lleva la parte «Pies» con el filamento de la placa: " + r.partes.join(", "));
   ok(r.nPal === 0 && r.mallas === 1 && /hacia atrás, poco/.test(r.nota), forma + ": sin palitos, pies en la vista y aviso junto a la opción");
 }
+// --- la vista 3D muestra el topper PARADO sobre una mesa cuando el apoyo es de mesa (pedido de Polley, 23-11-2026)
+const postura = () => page.evaluate(() => { grupo.updateMatrixWorld(true); const b = new THREE.Box3().setFromObject(grupo);
+  return { rx: grupo.rotation.x, z0: b.min.z, z1: b.max.z, y0: b.min.y, y1: b.max.y, mesa: typeof mesa !== "undefined" && mesa.visible, alto: GEOS.altoMm, objetivoZ: controls.target.z, camY: cam.position.y, camZ: cam.position.z,
+    tip: document.querySelector(".canvas-tip").textContent }; });
+await aplicar(page, Object.assign(disenoForma("contorno", false, { campos: { apoyo: "pie" } }), { motivo: await page.evaluate(() => buscarMotivo("Mariposa")) }));
+let ps = await postura();
+ok(Math.abs(ps.rx - Math.PI / 2) < 1e-6 && Math.abs(ps.z0) < 0.01 && Math.abs(ps.z1 - ps.alto) < 1.5, "con pie delantero la vista lo muestra parado: apoya en z=0 y sube " + ps.z1.toFixed(1) + " mm (alto " + ps.alto + ")");
+ok(ps.mesa && ps.objetivoZ > 10 && ps.camY < 0 && /parado/i.test(ps.tip), "se ve la mesa, la cámara mira al topper parado y el texto de ayuda lo dice: «" + ps.tip + "»");
+ok(ps.y1 - ps.y0 > 16 && ps.y0 < -13, "de pie, los pies salen hacia el frente (hacia la cámara): fondo ocupado " + (ps.y1 - ps.y0).toFixed(1) + " mm");
+// arrastrar la figura sigue funcionando estando parado
+{
+  const pt = await page.evaluate(() => { grupo.updateMatrixWorld(true); const box = new THREE.Box3(); grupo.children.filter((m) => m.userData.rol === "motivo").forEach((m) => box.expandByObject(m));
+    const c = box.getCenter(new THREE.Vector3()); c.y = box.min.y; c.project(cam); const r = canvas.getBoundingClientRect(); return { x: r.left + (c.x + 1) / 2 * r.width, y: r.top + (1 - c.y) / 2 * r.height }; });
+  const antes = await page.evaluate(() => ({ x: MOT_OFF.x, y: MOT_OFF.y, ax: AD_OFF.x }));
+  await page.mouse.move(pt.x, pt.y); await page.mouse.down(); await page.mouse.move(pt.x + 25, pt.y - 12, { steps: 4 }); await page.mouse.up(); await page.waitForTimeout(200);
+  const des = await page.evaluate(() => ({ x: MOT_OFF.x, y: MOT_OFF.y, ax: AD_OFF.x }));
+  ok(des.x > antes.x && des.y > antes.y && des.ax === antes.ax, "parado, arrastrar la figura a la derecha y arriba la mueve a la derecha y arriba (" + Math.round(des.x - antes.x) + ", " + Math.round(des.y - antes.y) + ")");
+}
+await page.evaluate(() => document.getElementById("btnFrontal").click());
+ps = await postura();
+ok(Math.abs(cam2(ps)) < 1 && ps.camY < -100, "«Vista frontal» estando parado lo mira de frente a media altura");
+function cam2(p){ return p.camZ - p.alto / 2; }
+await aplicar(page, disenoForma("contorno", true));
+ps = await postura();
+ok(ps.rx === 0 && !ps.mesa && Math.abs(ps.z0) < 0.01 && ps.z1 < 6 && ps.objetivoZ === 0 && !/parado/i.test(ps.tip), "con palitos la vista vuelve a acostado, sin mesa");
+
 // con borde: el borde sigue el diseño, no el zócalo, y no se mete en los pies
 await aplicar(page, disenoForma("rect", false, { campos: { apoyo: "pie" }, raiz: { bordeOn: true } }));
 const bo = await page.evaluate(() => { const y = []; GEOS.d2.borde.forEach((s) => s.extractPoints(8).shape.forEach((q) => y.push(q.y))); return { bordeMin: Math.min(...y), piesMax: GEOS.apoyo.yBase + 14 }; });
