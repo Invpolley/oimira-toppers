@@ -33,6 +33,15 @@ for (const forma of FORMAS){
     ok(r.msg === "", forma + " con " + n + ": sin aviso");
   }
 }
+// «solo letras» con adorno debajo del texto: los palitos no pueden quedar sueltos (defecto anterior, hallado el 23-11-2026
+// al cruzar modelos × formas: el palito nacía a la altura del adorno aunque en esa x no hubiera adorno)
+for (const palN of ["auto", "3"]){
+  const dm = (apoyo) => page.evaluate(async (o) => { const m = MODELOS.filter((x) => x.id === "mariposas-boutique")[0], d = disenoDeModelo(m);
+    d.campos.placa = "letras"; d.campos.apoyo = o.apoyo; d.campos.palN = o.palN; d.palitos = o.apoyo === "palitos";
+    aplicarDiseno(d, true); try { await cargarFuente($("#fuente").value); } catch (e) {} refrescar(); return { islas: comprobarUniones().n, n: GEOS.d2.nPalitos }; }, { apoyo, palN });
+  const s0 = await dm("ninguno"), s1 = await dm("palitos");
+  ok(s1.n >= 1 && s1.islas === s0.islas, "solo letras con adorno debajo, palitos " + palN + ": " + s1.n + " palito(s) unidos al diseño (islas " + s1.islas + " contra " + s0.islas + " sin palitos)");
+}
 // se ven de verdad en la silueta: 4 palitos agregan más área que 1
 await aplicar(page, disenoForma("ovalo", true, { campos: { apoyo: "palitos", palN: "1" } })); const a1 = (await huella(page)).placa.area;
 await aplicar(page, disenoForma("ovalo", true, { campos: { apoyo: "palitos", palN: "4" } })); const a4 = (await huella(page)).placa.area;

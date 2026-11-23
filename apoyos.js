@@ -51,27 +51,33 @@ function zocalo(plateShapes, alto){
   z.shape = apRect(z.xlo, z.yBase, z.xhi, z.yTop);
   return z;
 }
-// Columnas de 8 mm (en los dos extremos y en el centro) que suben del zocalo hasta 6 mm dentro de la silueta real:
-// sin ellas, en un texto con una sola letra baja el zocalo quedaria colgando de esa letra.
-function columnasZocalo(silueta, z){
-  var out = [];
-  [z.xlo + 6, (z.xlo + z.xhi) / 2, z.xhi - 6].forEach(function(x){
-    var fy = apFondo(silueta, x);
-    if (fy !== null && fy + 6 > z.yTop) out.push(apRect(x - 4, z.yBase, x + 4, fy + 6));
+// Marco del pie delantero: una barra baja bajo el diseño y un poste a cada lado (fuera del diseño, para no taparlo)
+// que lleva el pie. Tres columnas suben de la barra hasta 6 mm dentro de la silueta real, para que el diseño no
+// cuelgue de una sola letra baja. El largo de los pies crece con el alto del topper.
+var PIE_INCLINACION = 9; // grados que queda inclinado hacia adelante (es lo que le da aguante hacia atras)
+function marcoPie(silueta){
+  var c = apRecuadro(silueta), W = c.x1 - c.x0, yBase = c.y0 - 6, H = c.y1 - yBase;
+  var L = Math.min(34, Math.max(16, 0.2 * H)), d = L * Math.tan(PIE_INCLINACION * Math.PI / 180);
+  var xa = c.x0 - 14, xb = c.x1 + 14, yPoste = yBase + d + L + 1;
+  var shapes = [apRect(xa, yBase, xb, c.y0 + 4), apRect(xa, yBase, c.x0 - 2, yPoste), apRect(c.x1 + 2, yBase, xb, yPoste)];
+  [0.25, 0.5, 0.75].forEach(function(f){
+    var x = c.x0 + W * f, fy = apFondo(silueta, x);
+    if (fy !== null && fy + 6 > c.y0 + 4) shapes.push(apRect(x - 4, yBase, x + 4, fy + 6));
   });
-  return out;
+  return { shapes: shapes, yBase: yBase, pies: [[xa, c.x0 - 2], [c.x1 + 2, xb]], largo: L, inclinacion: PIE_INCLINACION };
 }
-// Pies delanteros: dos cuñas de 12 mm de ancho sobre la cara del frente (z = grosor), en los extremos del zocalo.
-// Seccion: 14 mm de alto junto al borde de abajo y rampa de 45° hasta la placa. Acostado en la cama no tiene voladizos.
-function piesDelanteros(z, grosor){
-  var L = 14, pos = [];
+// Pies delanteros: una cuña sobre la cara del frente (z = grosor) en cada poste. La cara de apoyo sube inclinada
+// desde el borde de abajo hasta la punta (a `largo` mm de la placa) y de ahi baja una rampa de 45° hasta la placa.
+// Acostado en la cama no tiene voladizos. m = { yBase, pies: [[x0, x1], [x0, x1]], largo, inclinacion }.
+function piesDelanteros(m, grosor){
+  var L = m.largo, d = L * Math.tan(m.inclinacion * Math.PI / 180), pos = [];
   function tri(a, b, c){ pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); }
-  [[z.xlo, z.xlo + 12], [z.xhi - 12, z.xhi]].forEach(function(x){
-    var A = [x[0], z.yBase, grosor], B = [x[0], z.yBase + L, grosor], C = [x[0], z.yBase, grosor + L];
-    var A2 = [x[1], z.yBase, grosor], B2 = [x[1], z.yBase + L, grosor], C2 = [x[1], z.yBase, grosor + L];
+  m.pies.forEach(function(x){
+    var A = [x[0], m.yBase, grosor], B = [x[0], m.yBase + d + L, grosor], C = [x[0], m.yBase + d, grosor + L];
+    var A2 = [x[1], m.yBase, grosor], B2 = [x[1], m.yBase + d + L, grosor], C2 = [x[1], m.yBase + d, grosor + L];
     tri(A, C, B); tri(A2, B2, C2);            // tapas laterales
     tri(A, B, A2); tri(B, B2, A2);            // cara que descansa sobre la placa
-    tri(A, A2, C); tri(A2, C2, C);            // cara de apoyo en la mesa (borde de abajo)
+    tri(A, A2, C); tri(A2, C2, C);            // cara de apoyo en la mesa (del borde de abajo a la punta)
     tri(B, C, B2); tri(C, C2, B2);            // rampa de 45°
   });
   var g = new THREE.BufferGeometry();
@@ -113,13 +119,18 @@ function apMasa(piezas){
   return V > 0 ? { vol: V, x: mx / V, y: my / V, z: mz / V } : null;
 }
 // Estabilidad del topper parado en una mesa: grados que hay que inclinarlo para que el centro de masa se salga
-// de la huella de apoyo, hacia adelante (el frente, +z) y hacia atras. datos = { yBase, grosor }.
+// de la huella de apoyo, hacia adelante (el frente, +z) y hacia atras.
+// Pie delantero: datos = { yBase, grosor, largo, inclinacion }. Apoya en el canto delantero del borde de abajo
+// (y = yBase, z = grosor) y en las puntas de los pies; queda inclinado `inclinacion` grados hacia adelante.
 function estabilidadMesa(piezas, apoyo, datos){
   var m = apMasa(piezas);
   if (!m) return { adelante: 0, atras: 0 };
-  var alto = m.y - datos.yBase, G = 180 / Math.PI;
-  if (apoyo === "pie"){ // parado vertical sobre el borde de abajo: la huella va de z = 0 (atras) a z = grosor + 14 (punta de los pies)
-    return { adelante: Math.atan2(datos.grosor + 14 - m.z, alto) * G, atras: Math.atan2(m.z, alto) * G };
+  var G = 180 / Math.PI;
+  if (apoyo === "pie"){
+    var f = datos.inclinacion / G, dy = m.y - datos.yBase, dz = m.z - datos.grosor;
+    var s = dy * Math.sin(f) + dz * Math.cos(f);     // distancia horizontal del centro de masa al canto de atras de la huella
+    var alto = dy * Math.cos(f) - dz * Math.sin(f);  // altura del centro de masa sobre la mesa
+    return { adelante: Math.atan2(datos.largo / Math.cos(f) - s, alto) * G, atras: Math.atan2(s, alto) * G };
   }
   return { adelante: 0, atras: 0 };
 }

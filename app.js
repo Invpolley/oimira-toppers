@@ -624,7 +624,25 @@ function construir(){
         if (arr.length){ var eb2 = shapesBBox(arr); if (eb2.min.y < topP - 3) topP = eb2.min.y + 2; }
       });
       palPed = cantidadPalitos(palSel, last.hw > 16 ? 2 : 1);
-      posicionesPalitos(palPed, -last.hw, last.hw).forEach(function(px){ plateShapes.push(palito(px, topP, plL)); nPal++; palX.push(px); });
+      // Cada palito debe morder la silueta: si en su x el borde inferior real queda por encima de donde nace
+      // (pasa cuando hay un adorno debajo del texto y el palito cae al lado del adorno), se alarga hacia arriba
+      // hasta entrar 3 mm; todas las puntas siguen a la misma altura.
+      var silLetras = plateShapes.slice();
+      posicionesPalitos(palPed, -last.hw, last.hw).forEach(function(px0){
+        var px = px0, fy = apFondo(silLetras, px);
+        for (var k = 1; fy === null && k <= 10; k++){
+          if ((fy = apFondo(silLetras, px0 + k)) !== null) px = px0 + k;
+          else if ((fy = apFondo(silLetras, px0 - k)) !== null) px = px0 - k;
+        }
+        if (fy === null || palX.some(function(x){ return Math.abs(x - px) < 8; })) return;
+        var st = palito(px, topP, plL);
+        if (fy + 3 > topP){ // alargar hacia arriba
+          st = new THREE.Shape();
+          st.moveTo(px - 3, fy + 3); st.lineTo(px + 3, fy + 3);
+          st.lineTo(px + 3, topP - plL + 4); st.lineTo(px, topP - plL); st.lineTo(px - 3, topP - plL + 4); st.closePath();
+        }
+        plateShapes.push(st); nPal++; palX.push(px);
+      });
     }
     var bb4 = shapesBBox(plateShapes);
     plateWmm = bb4.max.x - bb4.min.x; plateHmm = bb4.max.y - bb4.min.y;
@@ -690,16 +708,15 @@ function construir(){
   }
   }
 
-  // --- apoyo de mesa: pie delantero (zocalo bajo la silueta + dos pies en rampa sobre el frente) ---
-  // El borde de color (bordeBase) sigue el diseño, no el zocalo: asi no se mete en los pies.
+  // --- apoyo de mesa: pie delantero (marco bajo y a los lados de la silueta + dos pies en rampa sobre el frente) ---
+  // El borde de color (bordeBase) sigue el diseño, no el marco.
   var apoyoGeo = null, apoyoDatos = null;
   if (apoyo === "pie" && plateShapes.length){
-    var silSinZoc = plateShapes.slice(), zc = zocalo(silSinZoc, 16);
-    plateShapes.push(zc.shape);
-    columnasZocalo(silSinZoc, zc).forEach(function(s){ plateShapes.push(s); });
-    plateHmm += 14;
-    apoyoGeo = piesDelanteros(zc, grosor);
-    apoyoDatos = { tipo: "pie", yBase: zc.yBase, xlo: zc.xlo, xhi: zc.xhi, grosor: grosor };
+    var mp = marcoPie(plateShapes.slice());
+    mp.shapes.forEach(function(s){ plateShapes.push(s); });
+    plateWmm += 28; plateHmm += 6; // dos postes de 12 mm (+2 de separacion) y la barra de abajo
+    apoyoGeo = piesDelanteros(mp, grosor);
+    apoyoDatos = { tipo: "pie", yBase: mp.yBase, pies: mp.pies, largo: mp.largo, inclinacion: mp.inclinacion, grosor: grosor };
   }
   // --- presencia de cada parte ---
   // Las mallas ya no se arman aqui: la vista y las descargas salen de las piezas de impresion (ver `solidos` mas
@@ -779,11 +796,13 @@ var TIP_PARADO = "Así queda parado en la mesa · arrastra el fondo para girarlo
 function pintarPostura(b){
   var parado = !!(b && b.apoyo);
   if (parado){
-    // el eje "arriba" de la placa pasa a ser el de la escena y el frente mira a la cámara; el borde de abajo toca la mesa
-    grupo.rotation.set(Math.PI / 2, 0, 0);
-    grupo.position.set(0, b.apoyo.grosor / 2, -b.apoyo.yBase);
+    // el eje "arriba" de la placa pasa a ser el de la escena y el frente mira a la cámara, inclinado como queda de
+    // verdad; el canto delantero del borde de abajo (donde apoya) va al origen, sobre la mesa
+    var ang = Math.PI / 2 + (b.apoyo.inclinacion || 0) * Math.PI / 180, yB = b.apoyo.yBase, g = b.apoyo.grosor;
+    grupo.rotation.set(ang, 0, 0);
+    grupo.position.set(0, -(yB * Math.cos(ang) - g * Math.sin(ang)), -(yB * Math.sin(ang) + g * Math.cos(ang)));
     var r = Math.max(110, b.anchoMm * 0.8);
-    mesa.scale.set(r, r, 1); mesa.position.set(0, -6, -0.2);
+    mesa.scale.set(r, r, 1); mesa.position.set(0, -10, -0.2);
   } else {
     grupo.rotation.set(0, 0, 0); grupo.position.set(0, 0, 0);
   }
@@ -906,7 +925,7 @@ function pintarApoyo(){
   $("#palitos").checked = (a === "palitos");
   ["campoPalN", "campoPalLen"].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = (a === "palitos") ? "" : "none"; });
   var nota = document.getElementById("apoyoNota");
-  if (nota) nota.textContent = a === "pie" ? "Aguanta bien hacia adelante; hacia atrás, poco. Para mesas, no para tortas." : "";
+  if (nota) nota.textContent = a === "pie" ? "Queda inclinado 9° hacia adelante para no caerse hacia atrás. Para mesas, no para tortas." : "";
 }
 document.getElementById("apoyo").addEventListener("change", pintarApoyo);
 document.getElementById("profColor").addEventListener("change", function(){ this.value = profColorActual().toFixed(1); });
