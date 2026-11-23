@@ -301,7 +301,10 @@
         <div class="row">
           <div class="field"><label>Ancho mm</label><input id="ancho" type="number" value="140" min="60" max="220" /></div>
           <div class="field"><label>Grosor</label><input id="grosor" type="number" value="3" min="1.6" max="6" step="0.2" /></div>
-          <div class="field"><label>Relieve</label><input id="relieve" type="number" value="1.2" min="0.6" max="3" step="0.2" /></div>
+          <div class="field"><label>Relieve</label><input id="relieve" type="number" value="1.0" min="0.6" max="3" step="0.2" /></div>
+        </div>
+        <div class="row">
+          <div class="field"><label title="Cada color ocupa este espesor desde arriba; lo de abajo se imprime del color de la placa. Mínimo 1 mm.">Profundidad del color mm</label><input id="profColor" type="number" value="1.0" min="1" max="3" step="0.2" /></div>
         </div>
         <div class="row">
           <div class="field"><label>Apoyo</label>
@@ -411,10 +414,11 @@
 <script src="motivos-data.js?v=4"></script>
 <script src="motivos-pro-data.js?v=2"></script>
 <script src="adornos-data.js?v=3"></script>
-<script src="modelos-data.js?v=2"></script>
+<script src="modelos-data.js?v=3"></script>
 <script src="bambu-perfil-data.js?v=1"></script>
 <script src="bambu-3mf.js?v=1"></script>
 <script src="apoyos.js?v=1"></script>
+<script src="piezas.js?v=1"></script>
 <script src="app.js?v=34"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js?v=20260913").then(reg=>{ reg.update(); reg.addEventListener("updatefound",()=>{ const w=reg.installing; w&&w.addEventListener("statechange",()=>{ if(w.state==="activated"&&navigator.serviceWorker.controller) location.reload(); }); }); }).catch(()=>{}); });

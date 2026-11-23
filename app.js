@@ -10,7 +10,7 @@ var BIBLIOTECA = (window.MOTIVOS_PRO || []).concat(window.MOTIVOS_TRAZADOS || []
 var FUENTES = {}; // nombre -> opentype.Font
 var MOTIVO_SEL = null;       // {nombre, paths}
 var MOTIVOS_IA = [];
-var GEOS = null;             // { placa, texto, motivo } BufferGeometry en mm
+var GEOS = null;             // lo construido: marcas de partes, d2 (2D), solidos y piezas de impresion (mm)
 var MOT_OFF = { x: 0, y: 0 };    // desplazamiento del motivo (unidades de fuente)
 var AD_OFF = { x: 0, y: 0 };     // desplazamiento del adorno
 var ULT_ESC = 1;                 // ultima escala mm/unidad (para convertir el arrastre)
@@ -690,18 +690,12 @@ function construir(){
   }
   }
 
-  // --- extrusiones ---
-  function extr(shapes, depth){
-    if (!shapes.length) return null;
-    var g = new THREE.ExtrudeGeometry(shapes, { depth: depth, bevelEnabled: false, curveSegments: 18 });
-    return g;
-  }
+  // --- presencia de cada parte ---
+  // Las mallas ya no se arman aqui: la vista y las descargas salen de las piezas de impresion (ver `solidos` mas
+  // abajo y piezas.js). placa/texto/motivo/adorno/borde quedan como marcas (true o null) de "esta parte existe".
   var fullDepth = (forma === "aro" || forma === "letras");
-  var dRel = fullDepth ? grosor + relieve : relieve;
-  var gPlaca = extr(plateShapes, grosor);
-  var gTexto = extr(textMm, dRel); if (gTexto && !fullDepth) gTexto.translate(0, 0, grosor);
-  var gMot = extr(motMm, dRel); if (gMot && !fullDepth) gMot.translate(0, 0, grosor);
-  var gAd = extr(adMm, dRel); if (gAd && !fullDepth) gAd.translate(0, 0, grosor);
+  var gPlaca = plateShapes.length ? true : null, gTexto = textMm.length ? true : null;
+  var gMot = motMm.length ? true : null, gAd = adMm.length ? true : null;
   // --- borde de color siguiendo la silueta de la placa ---
   var gBorde = null, bordeShapes = [];
   var bordeChk = document.getElementById("bordeOn");
@@ -727,31 +721,26 @@ function construir(){
     var treeB = new ClipperLib.PolyTree();
     cB2.Execute(ClipperLib.ClipType.ctDifference, treeB, ClipperLib.PolyFillType.pftNonZero, ClipperLib.PolyFillType.pftNonZero);
     bordeShapes = treeToShapes(treeB);
-    gBorde = extr(bordeShapes, relieve);
-    if (gBorde) gBorde.translate(0, 0, grosor);
+    gBorde = bordeShapes.length ? true : null;
   }
-  // Motivo PRO: capas apiladas (0.45mm cada una) para relieve tipo sticker
+  // Motivo PRO: capas apiladas (0.45mm cada una) para relieve tipo sticker; reemplazan al motivo plano
   var gCapas = null;
   if (capasMm){
-    gMot = null; // el motivo plano se reemplaza por las capas
-    var stepH = 0.45;
-    gCapas = [];
-    capasMm.forEach(function(c, i){
-      var g = extr(c.shapes, stepH + 0.02);
-      if (g){ g.translate(0, 0, grosor + i * stepH); gCapas.push({ geo: g, color: c.color }); }
-    });
+    gMot = null;
+    gCapas = capasMm.filter(function(c){ return c.shapes.length; }).map(function(c){ return { color: c.color }; });
   }
   // solidos: lo mismo descrito como silueta + alturas + color (de ahi salen las piezas de impresion, ver piezas.js).
   // El mas alto es el que se ve de frente; a igual altura gana la prioridad mayor.
   var zRel0 = fullDepth ? 0 : grosor, zRel1 = grosor + relieve;
   var solidos = [{ rol: "placa", nombre: "Placa", color: $("#c1").value, shapes: plateShapes, z0: 0, z1: grosor, prioridad: 0 }];
-  if (bordeShapes.length) solidos.push({ rol: "borde", nombre: "Borde", color: $("#c5").value, shapes: bordeShapes, z0: grosor, z1: zRel1, prioridad: 1 });
-  if (adMm.length) solidos.push({ rol: "adorno", nombre: "Adorno", color: $("#c4").value, shapes: adMm, z0: zRel0, z1: zRel1, prioridad: 2 });
+  // orden = el de la lista de filamentos del proyecto: placa, texto, figura, adorno, borde
+  if (textMm.length) solidos.push({ rol: "texto", nombre: "Texto", color: $("#c2").value, shapes: textMm, z0: zRel0, z1: zRel1, prioridad: 4 });
   if (capasMm) capasMm.forEach(function(c, i){
     if (c.shapes.length) solidos.push({ rol: "capa", nombre: "Figura capa " + (i + 1), color: c.color, shapes: c.shapes, z0: zRel0, z1: grosor + (i + 1) * 0.45, prioridad: 10 + i });
   });
   else if (motMm.length) solidos.push({ rol: "motivo", nombre: "Figura", color: $("#c3").value, shapes: motMm, z0: zRel0, z1: zRel1, prioridad: 3 });
-  if (textMm.length) solidos.push({ rol: "texto", nombre: "Texto", color: $("#c2").value, shapes: textMm, z0: zRel0, z1: zRel1, prioridad: 4 });
+  if (adMm.length) solidos.push({ rol: "adorno", nombre: "Adorno", color: $("#c4").value, shapes: adMm, z0: zRel0, z1: zRel1, prioridad: 2 });
+  if (bordeShapes.length) solidos.push({ rol: "borde", nombre: "Borde", color: $("#c5").value, shapes: bordeShapes, z0: grosor, z1: zRel1, prioridad: 1 });
   // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
   var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal, palitosX: palX, palPedidos: palPed };
   return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
@@ -778,32 +767,28 @@ function tamCanvas(){
 }
 window.addEventListener("resize", function(){ tamCanvas(); });
 
+// Profundidad del color en mm (minimo 1: no se puede bajar).
+function profColorActual(){
+  var el = document.getElementById("profColor"), v = el ? Number(el.value) : 1;
+  return Math.max(1, v || 1);
+}
 function refrescar(){
   var b = construir();
-  while (grupo.children.length) grupo.remove(grupo.children[0]);
+  while (grupo.children.length){
+    var viejo = grupo.children[0]; grupo.remove(viejo);
+    if (viejo.geometry) viejo.geometry.dispose();
+    if (viejo.material) viejo.material.dispose();
+  }
   GEOS = null;
   if (!b) return;
   GEOS = b;
-  function add(g, color){
-    if (!g) return null;
-    var m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: color, roughness: 0.55, metalness: 0.05 }));
+  // La vista muestra las mismas piezas que se descargan (regla de profundidad de color, piezas.js)
+  b.piezas = piezasDeImpresion(b.solidos, profColorActual());
+  b.piezas.forEach(function(pz){
+    var m = new THREE.Mesh(geoDePieza(pz), new THREE.MeshStandardMaterial({ color: pz.color, roughness: 0.55, metalness: 0.05 }));
+    m.userData.rol = pz.rol;
     grupo.add(m);
-    return m;
-  }
-  add(b.placa, $("#c1").value);
-  add(b.texto, $("#c2").value);
-  if (b.motivoCapas){
-    var gr = new THREE.Group();
-    b.motivoCapas.forEach(function(c){
-      gr.add(new THREE.Mesh(c.geo, new THREE.MeshStandardMaterial({ color: c.color, roughness: 0.55, metalness: 0.05 })));
-    });
-    grupo.add(gr);
-    MESH_MOT = gr;
-  } else {
-    MESH_MOT = add(b.motivo, $("#c3").value);
-  }
-  MESH_AD = add(b.adorno, $("#c4").value);
-  add(b.borde, $("#c5").value);
+  });
   var med = document.getElementById("medidaTxt");
   if (med) med.textContent = b.anchoMm + " × " + b.altoMm + " mm";
   var um = document.getElementById("unionesMsg"); if (um){ um.textContent = ""; um.className = "unionesMsg"; }
@@ -819,7 +804,12 @@ function loop(){ requestAnimationFrame(loop); controls.update(); renderer.render
 /* --- arrastrar motivo / adorno en la vista --- */
 var _rayo = new THREE.Raycaster(), _pt = new THREE.Vector2();
 var _planoZ = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-var _arr = null; // { mesh, tipo, inicio }
+var _arr = null; // { mallas, tipo, inicio }
+// Que se arrastra al tomar una malla: "m" = la figura (plana o en capas), "a" = el adorno, null = nada.
+function tipoArrastre(m){
+  var rol = m.userData && m.userData.rol;
+  return (rol === "motivo" || rol === "capa") ? "m" : rol === "adorno" ? "a" : null;
+}
 function _puntero(ev){
   var r = canvas.getBoundingClientRect();
   _pt.x = ((ev.clientX - r.left) / r.width) * 2 - 1;
@@ -829,15 +819,14 @@ function _puntero(ev){
 canvas.addEventListener("pointerdown", function(ev){
   if (!GEOS) return;
   _puntero(ev);
-  var cands = [];
-  if (MESH_MOT) cands.push(MESH_MOT);
-  if (MESH_AD) cands.push(MESH_AD);
+  var cands = grupo.children.filter(function(m){ return tipoArrastre(m) !== null; });
   if (!cands.length) return;
   var hit = _rayo.intersectObjects(cands)[0];
   if (!hit) return;
   var p = new THREE.Vector3();
   if (!_rayo.ray.intersectPlane(_planoZ, p)) return;
-  _arr = { mesh: hit.object, tipo: hit.object === MESH_MOT ? "m" : "a", inicio: p.clone() };
+  var tipo = tipoArrastre(hit.object);
+  _arr = { mallas: grupo.children.filter(function(m){ return tipoArrastre(m) === tipo; }), tipo: tipo, inicio: p.clone() };
   controls.enabled = false;
   try { canvas.setPointerCapture(ev.pointerId); } catch (e) {}
 });
@@ -846,14 +835,13 @@ canvas.addEventListener("pointermove", function(ev){
   _puntero(ev);
   var p = new THREE.Vector3();
   if (!_rayo.ray.intersectPlane(_planoZ, p)) return;
-  _arr.mesh.position.x = p.x - _arr.inicio.x;
-  _arr.mesh.position.y = p.y - _arr.inicio.y;
+  _arr.mallas.forEach(function(m){ m.position.x = p.x - _arr.inicio.x; m.position.y = p.y - _arr.inicio.y; });
 });
 function _soltar(){
   if (!_arr) return;
   var off = _arr.tipo === "m" ? MOT_OFF : AD_OFF;
-  off.x += _arr.mesh.position.x / (ULT_ESC || 1);
-  off.y += _arr.mesh.position.y / (ULT_ESC || 1);
+  off.x += _arr.mallas[0].position.x / (ULT_ESC || 1);
+  off.y += _arr.mallas[0].position.y / (ULT_ESC || 1);
   _arr = null;
   controls.enabled = true;
   refrescar(); // reconstruye placa, contorno y puentes en la nueva posicion
@@ -879,8 +867,9 @@ function pintarApoyo(){
   ["campoPalN", "campoPalLen"].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = (a === "palitos") ? "" : "none"; });
 }
 document.getElementById("apoyo").addEventListener("change", pintarApoyo);
+document.getElementById("profColor").addEventListener("change", function(){ this.value = profColorActual().toFixed(1); });
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(function(){ refrescar(); registrarEstado(); pintarPasos(); }, 350); }
-["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","apoyo","palN","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
+["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","profColor","apoyo","palN","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
@@ -994,17 +983,10 @@ function stlBinario(geo){
 }
 
 /* ================= Export: proyecto Bambu (3MF) ================= */
-// Partes del topper para el proyecto Bambu, la placa siempre primero (bambu-3mf.js reparte los filamentos por color).
+// Partes del topper para el proyecto Bambu = las piezas de impresion (la placa siempre primero; bambu-3mf.js
+// reparte los filamentos por color).
 function partesParaExportar(){
-  var partes = [];
-  function add(geo, nombre, color){ if (geo) partes.push({ nombre: nombre, color: color, geo: geo }); }
-  add(GEOS.placa, "Placa", $("#c1").value);
-  add(GEOS.texto, "Texto", $("#c2").value);
-  if (GEOS.motivoCapas) GEOS.motivoCapas.forEach(function(c, i){ add(c.geo, "Figura capa " + (i + 1), c.color); });
-  else add(GEOS.motivo, "Figura", $("#c3").value);
-  add(GEOS.adorno, "Adorno", $("#c4").value);
-  add(GEOS.borde, "Borde", $("#c5").value);
-  return partes;
+  return GEOS.piezas.map(function(pz){ return { nombre: pz.nombre, color: pz.color, geo: geoDePieza(pz) }; });
 }
 function construir3mf(){
   return construirProyectoBambu({ titulo: nombreArchivo(""), partes: partesParaExportar(), perfilBase: window.BAMBU_PERFIL, ajustes: window.BAMBU_AJUSTES });
@@ -1031,11 +1013,9 @@ $("#btnStl").onclick = async function(){
   if (!GEOS || !GEOS.placa) return msgEl("dlMsg", "Escribe al menos una línea de texto.", true);
   msgEl("dlMsg", "Generando STLs…");
   var zip = new JSZip();
-  [["placa","1-placa"],["texto","2-texto"],["motivo","3-motivo"],["adorno","4-adorno"],["borde","5-borde"]].forEach(function(p){
-    if (GEOS[p[0]]) zip.file(p[1] + ".stl", stlBinario(GEOS[p[0]]));
-  });
-  if (GEOS.motivoCapas) GEOS.motivoCapas.forEach(function(c, i){
-    zip.file("3-motivo-capa" + (i+1) + "-" + c.color.replace("#","") + ".stl", stlBinario(c.geo));
+  GEOS.piezas.forEach(function(pz, i){ // un STL por pieza de impresion, en el mismo orden que el proyecto 3MF
+    var slug = pz.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-");
+    zip.file((i + 1) + "-" + slug + (pz.rol === "capa" ? "-" + pz.color.replace("#", "") : "") + ".stl", stlBinario(geoDePieza(pz)));
   });
   var blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
   descargar(blob, nombreArchivo("-stl.zip")); EXPORTADO = true;

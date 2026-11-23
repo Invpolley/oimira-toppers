@@ -12,7 +12,7 @@ const leer3mf = () => page.evaluate(async () => {
   const meta = (el, k) => { const m = Array.from(el.children).filter((c) => c.tagName === "metadata" && c.getAttribute("key") === k)[0]; return m ? m.getAttribute("value") : null; };
   const ps = JSON.parse(await zip.file("Metadata/project_settings.config").async("string"));
   const partes = Array.from(ms.getElementsByTagName("part")).map((p) => ({ nombre: meta(p, "name"), ext: +meta(p, "extruder") }));
-  const esperadas = ["placa", "texto", "motivo", "adorno", "borde"].filter((k) => GEOS[k]).length + (GEOS.motivoCapas ? GEOS.motivoCapas.length : 0);
+  const esperadas = GEOS.piezas.length; // una parte por pieza de impresión
   return { partes, esperadas, colores: ps.filament_colour, titulo: meta(ms.getElementsByTagName("object")[0], "name"), b64: null };
 });
 const resumen = async () => { await page.evaluate(() => abrirExportar()); return page.evaluate(() => ({ html: document.getElementById("expResumen").innerHTML, txt: document.getElementById("expResumen").textContent, muestras: document.querySelectorAll("#expResumen .pal")[0].querySelectorAll("i").length, fuera: document.querySelectorAll("#expResumen .pal").length > 1 ? document.querySelectorAll("#expResumen .pal")[1].querySelectorAll("i").length : 0 })); };
@@ -36,8 +36,10 @@ if (ok(!!pro, "hay una figura PRO para probar")){
   await aplicar(page, disenoForma("contorno", true, { raiz: { motivo: await page.evaluate((n) => buscarMotivo(n), pro) } }));
   r = await leer3mf();
   const capas = await page.evaluate(() => GEOS.motivoCapas.map((c) => c.color));
-  ok(r.partes.length === r.esperadas && r.partes.filter((p) => /^Figura capa \d+$/.test(p.nombre)).length === capas.length, "PRO: una parte por capa (" + capas.length + ")");
-  ok(r.colores.length === new Set(["#f5f5f5", "#d32f2f"].concat(capas).map((c) => c.toLowerCase())).size, "PRO: filamentos = colores distintos (" + r.colores.length + ")");
+  const nCapas = r.partes.filter((p) => /^Figura capa \d+$/.test(p.nombre)).length;
+  ok(r.partes.length === r.esperadas && nCapas >= 2 && nCapas <= capas.length, "PRO: una parte por capa que se ve (" + nCapas + " de " + capas.length + ")");
+  const coloresPiezas = await page.evaluate(() => Array.from(new Set(GEOS.piezas.map((p) => p.color.toLowerCase()))).length);
+  ok(r.colores.length === coloresPiezas && r.colores.length <= new Set(["#f5f5f5", "#d32f2f"].concat(capas).map((c) => c.toLowerCase())).size, "PRO: filamentos = colores distintos que se ven (" + r.colores.length + ")");
   ok(r.partes.every((p) => p.ext >= 1 && p.ext <= r.colores.length), "PRO: todo filamento existe en la lista");
 }
 
