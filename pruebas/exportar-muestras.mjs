@@ -1,8 +1,8 @@
 // Guarda proyectos 3MF de muestra (los que se laminan con el Bambu Studio real).
-// Uso: node pruebas/exportar-muestras.mjs <carpeta> [prefijo] [relieve] ['{"ajuste":"valor"}']
+// Uso: node pruebas/exportar-muestras.mjs <carpeta> [prefijo] [relieve] ['{"ajuste":"valor"}' | -] [apoyo: palitos|pie|pata|ninguno]
 import fs from "node:fs"; import path from "node:path";
 import { abrirApp, aplicar, aplicarModeloId, disenoForma } from "./lib.mjs";
-const DIR = process.argv[2], PRE = process.argv[3] || "", REL = process.argv[4] || "1.0", AJ = process.argv[5] ? JSON.parse(process.argv[5]) : null;
+const DIR = process.argv[2], PRE = process.argv[3] || "", REL = process.argv[4] || "1.0", AJ = process.argv[5] && process.argv[5] !== "-" ? JSON.parse(process.argv[5]) : null, APOYO = process.argv[6] || "palitos";
 if (!DIR){ console.log("falta la carpeta de salida"); process.exit(1); }
 fs.mkdirSync(DIR, { recursive: true });
 const { page, cerrar } = await abrirApp();
@@ -19,13 +19,13 @@ async function guardar(nombre){
 }
 // 1) contorno con figura, adorno y borde (parecido al topper de referencia de Polley)
 await aplicarModeloId(page, "mariposas-boutique");
-await page.evaluate((rel) => { $("#bordeOn").checked = true; $("#relieve").value = rel; refrescar(); }, REL);
+await page.evaluate((o) => { $("#bordeOn").checked = true; $("#relieve").value = o.rel; $("#apoyo").value = o.apoyo; pintarApoyo(); refrescar(); }, { rel: REL, apoyo: APOYO });
 await guardar("contorno");
 // 2) aro
-await aplicar(page, disenoForma("aro", true, { campos: { c3: "#1565c0", relieve: REL } }));
+await aplicar(page, disenoForma("aro", APOYO === "palitos", { campos: { c3: "#1565c0", relieve: REL, apoyo: APOYO } }));
 await guardar("aro");
 // 3) figura PRO en capas
 const pro = await page.evaluate(() => { const m = (window.MOTIVOS_PRO || []).filter((x) => x.capas && x.capas.length > 1)[0]; return m ? buscarMotivo(m.nombre) : null; });
-await aplicar(page, disenoForma("contorno", true, { campos: { relieve: REL }, raiz: { motivo: pro } }));
+await aplicar(page, disenoForma("contorno", APOYO === "palitos", { campos: { relieve: REL, apoyo: APOYO }, raiz: { motivo: pro } }));
 await guardar("pro");
 await cerrar();

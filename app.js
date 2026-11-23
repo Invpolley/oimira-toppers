@@ -690,6 +690,17 @@ function construir(){
   }
   }
 
+  // --- apoyo de mesa: pie delantero (zocalo bajo la silueta + dos pies en rampa sobre el frente) ---
+  // El borde de color (bordeBase) sigue el diseño, no el zocalo: asi no se mete en los pies.
+  var apoyoGeo = null, apoyoDatos = null;
+  if (apoyo === "pie" && plateShapes.length){
+    var silSinZoc = plateShapes.slice(), zc = zocalo(silSinZoc, 16);
+    plateShapes.push(zc.shape);
+    columnasZocalo(silSinZoc, zc).forEach(function(s){ plateShapes.push(s); });
+    plateHmm += 14;
+    apoyoGeo = piesDelanteros(zc, grosor);
+    apoyoDatos = { tipo: "pie", yBase: zc.yBase, xlo: zc.xlo, xhi: zc.xhi, grosor: grosor };
+  }
   // --- presencia de cada parte ---
   // Las mallas ya no se arman aqui: la vista y las descargas salen de las piezas de impresion (ver `solidos` mas
   // abajo y piezas.js). placa/texto/motivo/adorno/borde quedan como marcas (true o null) de "esta parte existe".
@@ -744,7 +755,7 @@ function construir(){
   // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
   var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal, palitosX: palX, palPedidos: palPed };
   return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
-           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2, solidos: solidos };
+           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2, solidos: solidos, apoyo: apoyoDatos, apoyoGeo: apoyoGeo };
 }
 
 /* ================= Vista previa 3D ================= */
@@ -784,6 +795,7 @@ function refrescar(){
   GEOS = b;
   // La vista muestra las mismas piezas que se descargan (regla de profundidad de color, piezas.js)
   b.piezas = piezasDeImpresion(b.solidos, profColorActual());
+  if (b.apoyoGeo) b.piezas.push({ rol: "apoyo", nombre: "Pies", color: b.solidos[0].color, prismas: [], extra: b.apoyoGeo }); // del color de la placa
   b.piezas.forEach(function(pz){
     var m = new THREE.Mesh(geoDePieza(pz), new THREE.MeshStandardMaterial({ color: pz.color, roughness: 0.55, metalness: 0.05 }));
     m.userData.rol = pz.rol;
@@ -856,7 +868,7 @@ document.getElementById("btnCentrar").onclick = function(){
   refrescar();
 };
 
-// Apoyo elegido: "palitos" (torta) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
+// Apoyo elegido: "palitos" (torta) | "pie" (pie delantero, mesa) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
 function apoyoActual(){
   var el = document.getElementById("apoyo");
   return el && el.value ? el.value : ($("#palitos").checked ? "palitos" : "ninguno");
@@ -865,6 +877,8 @@ function pintarApoyo(){
   var a = apoyoActual();
   $("#palitos").checked = (a === "palitos");
   ["campoPalN", "campoPalLen"].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = (a === "palitos") ? "" : "none"; });
+  var nota = document.getElementById("apoyoNota");
+  if (nota) nota.textContent = a === "pie" ? "Aguanta bien hacia adelante; hacia atrás, poco. Para mesas, no para tortas." : "";
 }
 document.getElementById("apoyo").addEventListener("change", pintarApoyo);
 document.getElementById("profColor").addEventListener("change", function(){ this.value = profColorActual().toFixed(1); });
@@ -1755,7 +1769,11 @@ function abrirExportar(){
       "<br>Piezas: " + partes.map(function(p){ return p[0]; }).join(", ") + (GEOS.motivoCapas ? " (figura en " + GEOS.motivoCapas.length + " capas)" : "") +
       "<br>Colores: <span class=\"pal\">" + fil.colores.map(function(c, i){ return '<i style="background:' + c + '" title="Filamento ' + (i + 1) + '"></i>'; }).join("") + "</span> " + nCol + " filamento" + (nCol === 1 ? "" : "s") +
       (fuera.length ? "<br>⚠ No está en tus filamentos: <span class=\"pal\">" + fuera.map(function(c){ return '<i style="background:' + c + '" title="' + c + '"></i>'; }).join("") + "</span> Bambu Studio usará el carrete más parecido." : "") +
-      (GEOS.d2.nPalitos ? "<br>" + GEOS.d2.nPalitos + " palito" + (GEOS.d2.nPalitos === 1 ? " integrado" : "s integrados") + " de " + $("#palLen").value + " mm" : "<br>Sin apoyo");
+      (GEOS.apoyo && GEOS.apoyo.tipo === "pie" ? (function(){
+          var est = estabilidadMesa(GEOS.piezas, "pie", GEOS.apoyo);
+          return "<br>Pie delantero para mesa · aguanta " + Math.round(est.atras) + "° hacia atrás y " + Math.round(est.adelante) + "° hacia adelante";
+        })()
+        : GEOS.d2.nPalitos ? "<br>" + GEOS.d2.nPalitos + " palito" + (GEOS.d2.nPalitos === 1 ? " integrado" : "s integrados") + " de " + $("#palLen").value + " mm" : "<br>Sin apoyo");
   }
   var r = comprobarUniones(), eu = document.getElementById("expUniones");
   eu.textContent = GEOS && GEOS.placa ? r.txt : ""; eu.className = "unionesMsg " + (r.ok ? "ok" : "warn");
