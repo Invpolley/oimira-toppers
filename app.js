@@ -741,10 +741,21 @@ function construir(){
       if (g){ g.translate(0, 0, grosor + i * stepH); gCapas.push({ geo: g, color: c.color }); }
     });
   }
+  // solidos: lo mismo descrito como silueta + alturas + color (de ahi salen las piezas de impresion, ver piezas.js).
+  // El mas alto es el que se ve de frente; a igual altura gana la prioridad mayor.
+  var zRel0 = fullDepth ? 0 : grosor, zRel1 = grosor + relieve;
+  var solidos = [{ rol: "placa", nombre: "Placa", color: $("#c1").value, shapes: plateShapes, z0: 0, z1: grosor, prioridad: 0 }];
+  if (bordeShapes.length) solidos.push({ rol: "borde", nombre: "Borde", color: $("#c5").value, shapes: bordeShapes, z0: grosor, z1: zRel1, prioridad: 1 });
+  if (adMm.length) solidos.push({ rol: "adorno", nombre: "Adorno", color: $("#c4").value, shapes: adMm, z0: zRel0, z1: zRel1, prioridad: 2 });
+  if (capasMm) capasMm.forEach(function(c, i){
+    if (c.shapes.length) solidos.push({ rol: "capa", nombre: "Figura capa " + (i + 1), color: c.color, shapes: c.shapes, z0: zRel0, z1: grosor + (i + 1) * 0.45, prioridad: 10 + i });
+  });
+  else if (motMm.length) solidos.push({ rol: "motivo", nombre: "Figura", color: $("#c3").value, shapes: motMm, z0: zRel0, z1: zRel1, prioridad: 3 });
+  if (textMm.length) solidos.push({ rol: "texto", nombre: "Texto", color: $("#c2").value, shapes: textMm, z0: zRel0, z1: zRel1, prioridad: 4 });
   // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
   var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal, palitosX: palX, palPedidos: palPed };
   return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
-           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2 };
+           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2, solidos: solidos };
 }
 
 /* ================= Vista previa 3D ================= */
