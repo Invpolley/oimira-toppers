@@ -43,47 +43,50 @@ function apFondo(shapes, px){
   });
   return mejor;
 }
-// Zocalo: franja recta bajo la silueta para que el topper apoye en una linea y los apoyos no tapen el diseño.
-// Ocupa el 72 % central del ancho; baja `alto - 2` mm del punto mas bajo y se monta 4 mm sobre la silueta.
-function zocalo(plateShapes, alto){
-  var c = apRecuadro(plateShapes), ancho = c.x1 - c.x0, cx = (c.x0 + c.x1) / 2;
-  var z = { xlo: cx - 0.36 * ancho, xhi: cx + 0.36 * ancho, yBase: c.y0 - alto + 2, yTop: c.y0 + 4 };
-  z.shape = apRect(z.xlo, z.yBase, z.xhi, z.yTop);
-  return z;
-}
-// Marco del pie delantero: una barra baja bajo el diseño y un poste a cada lado (fuera del diseño, para no taparlo)
-// que lleva el pie. Tres columnas suben de la barra hasta 6 mm dentro de la silueta real, para que el diseño no
-// cuelgue de una sola letra baja. El largo de los pies crece con el alto del topper.
-var PIE_INCLINACION = 9; // grados que queda inclinado hacia adelante (es lo que le da aguante hacia atras)
-function marcoPie(silueta){
-  var c = apRecuadro(silueta), W = c.x1 - c.x0, yBase = c.y0 - 6, H = c.y1 - yBase;
-  var L = Math.min(34, Math.max(16, 0.2 * H)), d = L * Math.tan(PIE_INCLINACION * Math.PI / 180);
-  var xa = c.x0 - 14, xb = c.x1 + 14, yPoste = yBase + d + L + 1;
-  var shapes = [apRect(xa, yBase, xb, c.y0 + 4), apRect(xa, yBase, c.x0 - 2, yPoste), apRect(c.x1 + 2, yBase, xb, yPoste)];
-  [0.25, 0.5, 0.75].forEach(function(f){
-    var x = c.x0 + W * f, fy = apFondo(silueta, x);
+// ---- Solapa trasera: el topper queda como un hablador en L ----
+// La placa se inclina SOLAPA_INCLINACION grados hacia atras y de su cara de atras, pegada al borde de abajo, sale una
+// solapa plana que descansa en la mesa. Se imprime boca abajo (frente en la cama): la solapa sube casi vertical
+// (10° de la vertical), asi que no necesita soportes.
+var SOLAPA_INCLINACION = 10, SOLAPA_ESPESOR = 3;
+// Borde recto de donde sale la solapa. Si la placa ya tiene uno (rectangulo), se usa: recta = { y, x0, x1 }.
+// Si no, se agrega una franja recta bajo la silueta (72 % del ancho, 6 mm por debajo del punto mas bajo, montada 4 mm)
+// con tres columnas que suben hasta 6 mm dentro de la silueta real, para que el diseño no cuelgue de una sola letra.
+function baseSolapa(silueta, recta){
+  if (recta) return { shapes: [], yBase: recta.y, x0: recta.x0, x1: recta.x1 };
+  var c = apRecuadro(silueta), W = c.x1 - c.x0, cx = (c.x0 + c.x1) / 2, yBase = c.y0 - 6;
+  var x0 = cx - 0.36 * W, x1 = cx + 0.36 * W, shapes = [apRect(x0, yBase, x1, c.y0 + 4)];
+  [x0 + 6, cx, x1 - 6].forEach(function(x){
+    var fy = apFondo(silueta, x);
     if (fy !== null && fy + 6 > c.y0 + 4) shapes.push(apRect(x - 4, yBase, x + 4, fy + 6));
   });
-  return { shapes: shapes, yBase: yBase, pies: [[xa, c.x0 - 2], [c.x1 + 2, xb]], largo: L, inclinacion: PIE_INCLINACION };
+  return { shapes: shapes, yBase: yBase, x0: x0, x1: x1 };
 }
-// Pies delanteros: una cuña sobre la cara del frente (z = grosor) en cada poste. La cara de apoyo sube inclinada
-// desde el borde de abajo hasta la punta (a `largo` mm de la placa) y de ahi baja una rampa de 45° hasta la placa.
-// Acostado en la cama no tiene voladizos. m = { yBase, pies: [[x0, x1], [x0, x1]], largo, inclinacion }.
-function piesDelanteros(m, grosor){
-  var L = m.largo, d = L * Math.tan(m.inclinacion * Math.PI / 180), pos = [];
-  function tri(a, b, c){ pos.push(a[0], a[1], a[2], b[0], b[1], b[2], c[0], c[1], c[2]); }
-  m.pies.forEach(function(x){
-    var A = [x[0], m.yBase, grosor], B = [x[0], m.yBase + d + L, grosor], C = [x[0], m.yBase + d, grosor + L];
-    var A2 = [x[1], m.yBase, grosor], B2 = [x[1], m.yBase + d + L, grosor], C2 = [x[1], m.yBase + d, grosor + L];
-    tri(A, C, B); tri(A2, B2, C2);            // tapas laterales
-    tri(A, B, A2); tri(B, B2, A2);            // cara que descansa sobre la placa
-    tri(A, A2, C); tri(A2, C2, C);            // cara de apoyo en la mesa (del borde de abajo a la punta)
-    tri(B, C, B2); tri(C, C2, B2);            // rampa de 45°
-  });
+// Malla de la solapa (coordenadas de la placa: z = 0 es la cara de atras). b = { yBase, x0, x1 }; alto = alto del topper.
+// Largo = 45 % del alto (entre 35 y 70 mm); las dos esquinas del extremo van redondeadas. Lleva un refuerzo
+// triangular de 4 mm por dentro de la L, a todo lo ancho, para que la union no sea solo una arista.
+function solapaTrasera(b, alto){
+  var f = SOLAPA_INCLINACION * Math.PI / 180, sn = Math.sin(f), cs = Math.cos(f), t = SOLAPA_ESPESOR;
+  var F = Math.min(70, Math.max(35, 0.45 * alto)), r = Math.min(8, (b.x1 - b.x0) / 4);
+  var sh = new THREE.Shape(); // contorno de la solapa: u = a lo ancho, v = alejandose de la placa
+  sh.moveTo(b.x0, 0); sh.lineTo(b.x1, 0); sh.lineTo(b.x1, F - r);
+  sh.absarc(b.x1 - r, F - r, r, 0, Math.PI / 2, false); sh.lineTo(b.x0 + r, F);
+  sh.absarc(b.x0 + r, F - r, r, Math.PI / 2, Math.PI, false); sh.lineTo(b.x0, 0);
+  var losa = new THREE.ExtrudeGeometry(sh, { depth: t, bevelEnabled: false, curveSegments: 10 });
+  if (losa.index) losa = losa.toNonIndexed();
+  var a = losa.attributes.position, pos = [];
+  for (var i = 0; i < a.count; i++){ // (u, v, w) -> placa: sale de la arista de atras-abajo, a lo largo de la mesa
+    var u = a.getX(i), v = a.getY(i), w = a.getZ(i);
+    pos.push(u, b.yBase + v * sn + w * cs, -v * cs + w * sn);
+  }
+  function tri(p, q, k){ pos.push(p[0], p[1], p[2], q[0], q[1], q[2], k[0], k[1], k[2]); }
+  var y3 = b.yBase + t / cs, G = 4; // refuerzo: triangulo entre la cara de atras y la cara de arriba de la solapa
+  var A = [b.x0, y3, 0], B = [b.x0, y3 + G, 0], C = [b.x0, y3 + G * sn, -G * cs];
+  var A2 = [b.x1, y3, 0], B2 = [b.x1, y3 + G, 0], C2 = [b.x1, y3 + G * sn, -G * cs];
+  tri(A, B, C); tri(A2, C2, B2); tri(A, A2, B); tri(A2, B2, B); tri(B, B2, C); tri(B2, C2, C); tri(C, C2, A); tri(C2, A2, A);
   var g = new THREE.BufferGeometry();
   g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
   g.computeVertexNormals();
-  return g;
+  return { geo: g, largo: F };
 }
 // Volumen (mm3) y centro de masa de un conjunto de piezas (prismas + mallas extra), suponiendo un solo material.
 function apMasa(piezas){
@@ -118,19 +121,14 @@ function apMasa(piezas){
   });
   return V > 0 ? { vol: V, x: mx / V, y: my / V, z: mz / V } : null;
 }
-// Estabilidad del topper parado en una mesa: grados que hay que inclinarlo para que el centro de masa se salga
-// de la huella de apoyo, hacia adelante (el frente, +z) y hacia atras.
-// Pie delantero: datos = { yBase, grosor, largo, inclinacion }. Apoya en el canto delantero del borde de abajo
-// (y = yBase, z = grosor) y en las puntas de los pies; queda inclinado `inclinacion` grados hacia adelante.
+// Estabilidad del topper parado en una mesa con la solapa: grados que hay que inclinarlo para que el centro de masa
+// se salga de la huella de apoyo, hacia adelante (el frente) y hacia atras. datos = { yBase, largo, inclinacion }.
+// La huella va de la arista de atras-abajo de la placa (adelante) hasta el extremo de la solapa (atras).
 function estabilidadMesa(piezas, apoyo, datos){
   var m = apMasa(piezas);
-  if (!m) return { adelante: 0, atras: 0 };
-  var G = 180 / Math.PI;
-  if (apoyo === "pie"){
-    var f = datos.inclinacion / G, dy = m.y - datos.yBase, dz = m.z - datos.grosor;
-    var s = dy * Math.sin(f) + dz * Math.cos(f);     // distancia horizontal del centro de masa al canto de atras de la huella
-    var alto = dy * Math.cos(f) - dz * Math.sin(f);  // altura del centro de masa sobre la mesa
-    return { adelante: Math.atan2(datos.largo / Math.cos(f) - s, alto) * G, atras: Math.atan2(s, alto) * G };
-  }
-  return { adelante: 0, atras: 0 };
+  if (!m || apoyo !== "solapa") return { adelante: 0, atras: 0 };
+  var G = 180 / Math.PI, f = datos.inclinacion / G, dy = m.y - datos.yBase;
+  var atrasMm = dy * Math.sin(f) - m.z * Math.cos(f); // cuanto queda el centro de masa detras de la arista de apoyo
+  var alto = dy * Math.cos(f) + m.z * Math.sin(f);    // altura del centro de masa sobre la mesa
+  return { adelante: Math.atan2(atrasMm, alto) * G, atras: Math.atan2(datos.largo - atrasMm, alto) * G };
 }

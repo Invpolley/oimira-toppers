@@ -708,15 +708,21 @@ function construir(){
   }
   }
 
-  // --- apoyo de mesa: pie delantero (marco bajo y a los lados de la silueta + dos pies en rampa sobre el frente) ---
-  // El borde de color (bordeBase) sigue el diseño, no el marco.
+  // --- apoyo de mesa: solapa trasera (la placa queda inclinada hacia atras, apoyada en una solapa; ver apoyos.js) ---
+  // El borde de color (bordeBase) sigue el diseño, no la franja de la solapa.
   var apoyoGeo = null, apoyoDatos = null;
-  if (apoyo === "pie" && plateShapes.length){
-    var mp = marcoPie(plateShapes.slice());
-    mp.shapes.forEach(function(s){ plateShapes.push(s); });
-    plateWmm += 28; plateHmm += 6; // dos postes de 12 mm (+2 de separacion) y la barra de abajo
-    apoyoGeo = piesDelanteros(mp, grosor);
-    apoyoDatos = { tipo: "pie", yBase: mp.yBase, pies: mp.pies, largo: mp.largo, inclinacion: mp.inclinacion, grosor: grosor };
+  if (apoyo === "solapa" && plateShapes.length){
+    var recta = null;
+    if (forma === "rect"){ // el rectangulo ya tiene borde recto: la solapa sale de ahi, entre las esquinas redondeadas
+      var rEsq = Math.min(10, plateHmm * 0.2);
+      recta = { y: -plateHmm / 2, x0: -plateWmm / 2 + rEsq + 2, x1: plateWmm / 2 - rEsq - 2 };
+    }
+    var bs = baseSolapa(plateShapes.slice(), recta);
+    bs.shapes.forEach(function(s){ plateShapes.push(s); });
+    if (bs.shapes.length) plateHmm += 6;
+    var st = solapaTrasera(bs, apRecuadro(plateShapes).y1 - bs.yBase);
+    apoyoGeo = st.geo;
+    apoyoDatos = { tipo: "solapa", yBase: bs.yBase, x0: bs.x0, x1: bs.x1, largo: st.largo, inclinacion: SOLAPA_INCLINACION, grosor: grosor };
   }
   // --- presencia de cada parte ---
   // Las mallas ya no se arman aqui: la vista y las descargas salen de las piezas de impresion (ver `solidos` mas
@@ -759,16 +765,19 @@ function construir(){
   }
   // solidos: lo mismo descrito como silueta + alturas + color (de ahi salen las piezas de impresion, ver piezas.js).
   // El mas alto es el que se ve de frente; a igual altura gana la prioridad mayor.
-  var zRel0 = fullDepth ? 0 : grosor, zRel1 = grosor + relieve;
+  // Con solapa el topper se imprime boca abajo: el frente es liso (nada sobresale de la placa) y la regla de color
+  // deja cada color incrustado en el milimetro del frente.
+  var liso = apoyo === "solapa";
+  var zRel0 = (fullDepth || liso) ? 0 : grosor, zRel1 = liso ? grosor : grosor + relieve;
   var solidos = [{ rol: "placa", nombre: "Placa", color: $("#c1").value, shapes: plateShapes, z0: 0, z1: grosor, prioridad: 0 }];
   // orden = el de la lista de filamentos del proyecto: placa, texto, figura, adorno, borde
   if (textMm.length) solidos.push({ rol: "texto", nombre: "Texto", color: $("#c2").value, shapes: textMm, z0: zRel0, z1: zRel1, prioridad: 4 });
   if (capasMm) capasMm.forEach(function(c, i){
-    if (c.shapes.length) solidos.push({ rol: "capa", nombre: "Figura capa " + (i + 1), color: c.color, shapes: c.shapes, z0: zRel0, z1: grosor + (i + 1) * 0.45, prioridad: 10 + i });
+    if (c.shapes.length) solidos.push({ rol: "capa", nombre: "Figura capa " + (i + 1), color: c.color, shapes: c.shapes, z0: zRel0, z1: liso ? grosor : grosor + (i + 1) * 0.45, prioridad: 10 + i });
   });
   else if (motMm.length) solidos.push({ rol: "motivo", nombre: "Figura", color: $("#c3").value, shapes: motMm, z0: zRel0, z1: zRel1, prioridad: 3 });
   if (adMm.length) solidos.push({ rol: "adorno", nombre: "Adorno", color: $("#c4").value, shapes: adMm, z0: zRel0, z1: zRel1, prioridad: 2 });
-  if (bordeShapes.length) solidos.push({ rol: "borde", nombre: "Borde", color: $("#c5").value, shapes: bordeShapes, z0: grosor, z1: zRel1, prioridad: 1 });
+  if (bordeShapes.length) solidos.push({ rol: "borde", nombre: "Borde", color: $("#c5").value, shapes: bordeShapes, z0: liso ? 0 : grosor, z1: zRel1, prioridad: 1 });
   // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
   var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal, palitosX: palX, palPedidos: palPed };
   return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
@@ -792,17 +801,17 @@ var mesa = new THREE.Mesh(new THREE.CircleGeometry(1, 72), new THREE.MeshStandar
 mesa.visible = false; scene.add(mesa);
 var PARADO = false;
 var TIP_ACOSTADO = "Arrastra el motivo o adorno para moverlo · arrastra el fondo para girar";
-var TIP_PARADO = "Así queda parado en la mesa · arrastra el fondo para girarlo y verlo de lado";
+var TIP_PARADO = "Así queda parado en la mesa · arrastra el fondo para girarlo y ver la solapa por detrás";
 function pintarPostura(b){
   var parado = !!(b && b.apoyo);
   if (parado){
-    // el eje "arriba" de la placa pasa a ser el de la escena y el frente mira a la cámara, inclinado como queda de
-    // verdad; el canto delantero del borde de abajo (donde apoya) va al origen, sobre la mesa
-    var ang = Math.PI / 2 + (b.apoyo.inclinacion || 0) * Math.PI / 180, yB = b.apoyo.yBase, g = b.apoyo.grosor;
+    // el eje "arriba" de la placa pasa a ser el de la escena y el frente mira a la cámara, inclinado hacia atrás como
+    // queda de verdad; la arista de atrás-abajo (donde apoya y de donde sale la solapa) va al origen, sobre la mesa
+    var ang = Math.PI / 2 - (b.apoyo.inclinacion || 0) * Math.PI / 180, yB = b.apoyo.yBase;
     grupo.rotation.set(ang, 0, 0);
-    grupo.position.set(0, -(yB * Math.cos(ang) - g * Math.sin(ang)), -(yB * Math.sin(ang) + g * Math.cos(ang)));
+    grupo.position.set(0, -yB * Math.cos(ang), -yB * Math.sin(ang));
     var r = Math.max(110, b.anchoMm * 0.8);
-    mesa.scale.set(r, r, 1); mesa.position.set(0, -10, -0.2);
+    mesa.scale.set(r, r, 1); mesa.position.set(0, b.apoyo.largo / 3, -0.2);
   } else {
     grupo.rotation.set(0, 0, 0); grupo.position.set(0, 0, 0);
   }
@@ -835,7 +844,7 @@ function refrescar(){
   GEOS = b;
   // La vista muestra las mismas piezas que se descargan (regla de profundidad de color, piezas.js)
   b.piezas = piezasDeImpresion(b.solidos, profColorActual());
-  if (b.apoyoGeo) b.piezas.push({ rol: "apoyo", nombre: "Pies", color: b.solidos[0].color, prismas: [], extra: b.apoyoGeo }); // del color de la placa
+  if (b.apoyoGeo) b.piezas.push({ rol: "apoyo", nombre: "Solapa", color: b.solidos[0].color, prismas: [], extra: b.apoyoGeo }); // del color de la placa
   b.piezas.forEach(function(pz){
     var m = new THREE.Mesh(geoDePieza(pz), new THREE.MeshStandardMaterial({ color: pz.color, roughness: 0.55, metalness: 0.05 }));
     m.userData.rol = pz.rol;
@@ -915,7 +924,7 @@ document.getElementById("btnCentrar").onclick = function(){
   refrescar();
 };
 
-// Apoyo elegido: "palitos" (torta) | "pie" (pie delantero, mesa) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
+// Apoyo elegido: "palitos" (torta) | "solapa" (solapa trasera, mesa) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
 function apoyoActual(){
   var el = document.getElementById("apoyo");
   return el && el.value ? el.value : ($("#palitos").checked ? "palitos" : "ninguno");
@@ -925,7 +934,8 @@ function pintarApoyo(){
   $("#palitos").checked = (a === "palitos");
   ["campoPalN", "campoPalLen"].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = (a === "palitos") ? "" : "none"; });
   var nota = document.getElementById("apoyoNota");
-  if (nota) nota.textContent = a === "pie" ? "Queda inclinado 9° hacia adelante para no caerse hacia atrás. Para mesas, no para tortas." : "";
+  if (nota) nota.textContent = a === "solapa" ? "Queda inclinado 10° hacia atrás, apoyado en la solapa. Se imprime boca abajo: el frente es liso, sin relieve. Para mesas, no para tortas." : "";
+  var rel = document.getElementById("relieve"); if (rel) rel.disabled = (a === "solapa");
 }
 document.getElementById("apoyo").addEventListener("change", pintarApoyo);
 document.getElementById("profColor").addEventListener("change", function(){ this.value = profColorActual().toFixed(1); });
@@ -1047,7 +1057,14 @@ function stlBinario(geo){
 // Partes del topper para el proyecto Bambu = las piezas de impresion (la placa siempre primero; bambu-3mf.js
 // reparte los filamentos por color).
 function partesParaExportar(){
-  return GEOS.piezas.map(function(pz){ return { nombre: pz.nombre, color: pz.color, geo: geoDePieza(pz) }; });
+  // Con solapa la pieza va boca abajo: media vuelta sobre el eje vertical de la placa (es un giro, no un espejo:
+  // el texto se sigue leyendo de frente) y el frente queda apoyado en la cama.
+  var bocaAbajo = !!(GEOS.apoyo && GEOS.apoyo.tipo === "solapa"), giro = null;
+  if (bocaAbajo){ giro = new THREE.Matrix4().makeRotationY(Math.PI); giro.setPosition(0, 0, GEOS.apoyo.grosor); }
+  return GEOS.piezas.map(function(pz){
+    var geo = geoDePieza(pz); if (giro) geo.applyMatrix4(giro);
+    return { nombre: pz.nombre, color: pz.color, rol: pz.rol, geo: geo };
+  });
 }
 function construir3mf(){
   return construirProyectoBambu({ titulo: nombreArchivo(""), partes: partesParaExportar(), perfilBase: window.BAMBU_PERFIL, ajustes: window.BAMBU_AJUSTES });
@@ -1074,9 +1091,9 @@ $("#btnStl").onclick = async function(){
   if (!GEOS || !GEOS.placa) return msgEl("dlMsg", "Escribe al menos una línea de texto.", true);
   msgEl("dlMsg", "Generando STLs…");
   var zip = new JSZip();
-  GEOS.piezas.forEach(function(pz, i){ // un STL por pieza de impresion, en el mismo orden que el proyecto 3MF
-    var slug = pz.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-");
-    zip.file((i + 1) + "-" + slug + (pz.rol === "capa" ? "-" + pz.color.replace("#", "") : "") + ".stl", stlBinario(geoDePieza(pz)));
+  partesParaExportar().forEach(function(pt, i){ // un STL por pieza de impresion, igual orden y postura que el proyecto 3MF
+    var slug = pt.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-");
+    zip.file((i + 1) + "-" + slug + (pt.rol === "capa" ? "-" + pt.color.replace("#", "") : "") + ".stl", stlBinario(pt.geo));
   });
   var blob = await zip.generateAsync({ type: "blob", compression: "DEFLATE", compressionOptions: { level: 6 } });
   descargar(blob, nombreArchivo("-stl.zip")); EXPORTADO = true;
@@ -1343,7 +1360,8 @@ function aplicarDiseno(o, sinRefrescar){
   // Diseños guardados antes de existir el selector de apoyo: palitos:true = Palitos/Auto, palitos:false = Sin apoyo.
   // Se asigna siempre, para no heredar el apoyo del diseño que estaba en pantalla.
   var cpA = o.campos || {};
-  if (cpA.apoyo === undefined || !$("#apoyo").value) $("#apoyo").value = o.palitos ? "palitos" : "ninguno";
+  if (cpA.apoyo === "pie" || cpA.apoyo === "pata") $("#apoyo").value = "solapa"; // apoyos de mesa de versiones anteriores
+  else if (cpA.apoyo === undefined || !$("#apoyo").value) $("#apoyo").value = o.palitos ? "palitos" : "ninguno";
   if (cpA.palN === undefined || !$("#palN").value) $("#palN").value = "auto";
   var pcEl = document.getElementById("profColor"); if (pcEl && cpA.profColor === undefined) pcEl.value = "1.0";
   pintarApoyo();
@@ -1822,9 +1840,9 @@ function abrirExportar(){
       "<br>Piezas: " + partes.map(function(p){ return p[0]; }).join(", ") + (GEOS.motivoCapas ? " (figura en " + GEOS.motivoCapas.length + " capas)" : "") +
       "<br>Colores: <span class=\"pal\">" + fil.colores.map(function(c, i){ return '<i style="background:' + c + '" title="Filamento ' + (i + 1) + '"></i>'; }).join("") + "</span> " + nCol + " filamento" + (nCol === 1 ? "" : "s") +
       (fuera.length ? "<br>⚠ No está en tus filamentos: <span class=\"pal\">" + fuera.map(function(c){ return '<i style="background:' + c + '" title="' + c + '"></i>'; }).join("") + "</span> Bambu Studio usará el carrete más parecido." : "") +
-      (GEOS.apoyo && GEOS.apoyo.tipo === "pie" ? (function(){
-          var est = estabilidadMesa(GEOS.piezas, "pie", GEOS.apoyo);
-          return "<br>Pie delantero para mesa · aguanta " + Math.round(est.atras) + "° hacia atrás y " + Math.round(est.adelante) + "° hacia adelante";
+      (GEOS.apoyo && GEOS.apoyo.tipo === "solapa" ? (function(){
+          var est = estabilidadMesa(GEOS.piezas, "solapa", GEOS.apoyo);
+          return "<br>Solapa trasera para mesa · se imprime boca abajo, con el frente liso · aguanta " + Math.round(est.adelante) + "° hacia adelante y " + Math.round(est.atras) + "° hacia atrás";
         })()
         : GEOS.d2.nPalitos ? "<br>" + GEOS.d2.nPalitos + " palito" + (GEOS.d2.nPalitos === 1 ? " integrado" : "s integrados") + " de " + $("#palLen").value + " mm" : "<br>Sin apoyo");
   }

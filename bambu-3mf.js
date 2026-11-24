@@ -123,6 +123,13 @@ function construirProyectoBambu(o){
     }
   });
   var dx = -(x0 + x1) / 2, dy = -(y0 + y1) / 2, dz = -z0;
+  // Colocacion en la cama de la H2D (350 x 320; util para las dos boquillas: x de 25 a 325; al fondo, zona excluida
+  // desde y = 310). La pieza va centrada a lo ancho y hacia el frente, y la torre de purga 25 mm detras (se le dejan
+  // 70 mm de fondo). Si no cabe detras, a la derecha; si tampoco, pieza al centro y torre donde la trae el perfil.
+  var anchoP = x1 - x0, altoP = y1 - y0, objY = 160, torre = null;
+  function n3(v){ return String(+v.toFixed(3)); }
+  if (14 + altoP + 25 + 70 <= 308){ objY = 14 + altoP / 2; torre = [145, 14 + altoP + 25]; }
+  else if (175 + anchoP / 2 + 25 + 60 <= 325 && 14 + altoP <= 308){ objY = 14 + altoP / 2; torre = [175 + anchoP / 2 + 25, 120]; }
   var mallas = partes.map(function(p){ return mallaSoldada(p.geo, dx, dy, dz); });
   var hoy = new Date().toISOString().slice(0, 10), ID = "1 0 0 0 1 0 0 0 1 0 0 0";
 
@@ -136,7 +143,7 @@ function construirProyectoBambu(o){
   var modelo = cab + '<model ' + NS + '>\n' + metas.map(function(m){ return ' <metadata name="' + m[0] + '">' + xmlEsc(m[1]) + '</metadata>\n'; }).join("") +
     ' <resources>\n  <object id="' + idCont + '" p:UUID="' + uuidDe(2, 0) + '" type="model">\n   <components>\n' +
     partes.map(function(p, i){ return '    <component p:path="/3D/Objects/object_1.model" objectid="' + (i + 1) + '" p:UUID="' + uuidDe(3, i) + '" transform="' + ID + '"/>\n'; }).join("") +
-    '   </components>\n  </object>\n </resources>\n <build p:UUID="' + uuidDe(4, 0) + '">\n  <item objectid="' + idCont + '" p:UUID="' + uuidDe(5, 0) + '" transform="1 0 0 0 1 0 0 0 1 175 160 0" printable="1"/>\n </build>\n</model>\n';
+    '   </components>\n  </object>\n </resources>\n <build p:UUID="' + uuidDe(4, 0) + '">\n  <item objectid="' + idCont + '" p:UUID="' + uuidDe(5, 0) + '" transform="1 0 0 0 1 0 0 0 1 175 ' + n3(objY) + ' 0" printable="1"/>\n </build>\n</model>\n';
 
   var carasTot = mallas.reduce(function(s, m){ return s + m.tris.length; }, 0);
   var ajustesModelo = cab + '<config>\n  <object id="' + idCont + '">\n    <metadata key="name" value="' + titulo + '"/>\n    <metadata key="extruder" value="1"/>\n    <metadata face_count="' + carasTot + '"/>\n' +
@@ -158,7 +165,9 @@ function construirProyectoBambu(o){
   zip.file("3D/_rels/3dmodel.model.rels", cab + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">\n <Relationship Target="/3D/Objects/object_1.model" Id="rel-1" Type="http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel"/>\n</Relationships>\n');
   zip.file("3D/Objects/object_1.model", objetos);
   zip.file("Metadata/model_settings.config", ajustesModelo);
-  zip.file("Metadata/project_settings.config", JSON.stringify(expandirPerfil(o.perfilBase, fil.colores, o.ajustes || {}), null, 4));
+  var ajustesProyecto = expandirPerfil(o.perfilBase, fil.colores, o.ajustes || {});
+  if (torre){ ajustesProyecto.wipe_tower_x = [n3(torre[0])]; ajustesProyecto.wipe_tower_y = [n3(torre[1])]; }
+  zip.file("Metadata/project_settings.config", JSON.stringify(ajustesProyecto, null, 4));
   zip.file("Metadata/slice_info.config", cab + '<config>\n  <header>\n    <header_item key="X-BBL-Client-Type" value="slicer"/>\n    <header_item key="X-BBL-Client-Version" value="' + VER + '"/>\n  </header>\n</config>\n');
   zip.file("Metadata/cut_information.xml", '<?xml version="1.0" encoding="utf-8"?>\n<objects>\n <object id="1">\n  <cut_id id="0" check_sum="1" connectors_cnt="0"/>\n </object>\n</objects>\n');
   zip.file("Metadata/filament_sequence.json", '{"plate_1":{"nozzle_sequence":[],"optimal_assignment":[],"sequence":[]}}');

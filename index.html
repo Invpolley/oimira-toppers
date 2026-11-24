@@ -310,7 +310,7 @@
           <div class="field"><label>Apoyo</label>
             <select id="apoyo">
               <option value="palitos" selected>Palitos (torta)</option>
-              <option value="pie">Pie delantero (mesa)</option>
+              <option value="solapa">Solapa trasera (mesa)</option>
               <option value="ninguno">Sin apoyo</option>
             </select></div>
           <div class="field" id="campoPalN"><label>Cantidad</label>
@@ -418,10 +418,10 @@
 <script src="adornos-data.js?v=3"></script>
 <script src="modelos-data.js?v=3"></script>
 <script src="bambu-perfil-data.js?v=2"></script>
-<script src="bambu-3mf.js?v=2"></script>
-<script src="apoyos.js?v=3"></script>
+<script src="bambu-3mf.js?v=3"></script>
+<script src="apoyos.js?v=4"></script>
 <script src="piezas.js?v=1"></script>
-<script src="app.js?v=36"></script>
+<script src="app.js?v=37"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js?v=20260913").then(reg=>{ reg.update(); reg.addEventListener("updatefound",()=>{ const w=reg.installing; w&&w.addEventListener("statechange",()=>{ if(w.state==="activated"&&navigator.serviceWorker.controller) location.reload(); }); }); }).catch(()=>{}); });
 </script>

@@ -14,6 +14,12 @@ const r = await page.evaluate(async () => {
     { nombre: "Borde", color: "#F5F5F5", geo: caja(12, 22, 8, 4, 4, 1) },
     { nombre: "Vacía", color: "#00ff00", geo: new THREE.BufferGeometry() },
   ];
+  async function colocacion(w, h){ // dónde quedan la pieza y la torre para una pieza de w × h mm
+    const z = await JSZip.loadAsync(await construirProyectoBambu({ titulo: "x", partes: [{ nombre: "Placa", color: "#ffffff", geo: caja(0, 0, 0, w, h, 3) }], perfilBase: BAMBU_PERFIL, ajustes: {} }));
+    const it = new DOMParser().parseFromString(await z.file("3D/3dmodel.model").async("string"), "application/xml").getElementsByTagName("item")[0];
+    const p = JSON.parse(await z.file("Metadata/project_settings.config").async("string"));
+    return [it.getAttribute("objectid").replace("2", "4") + "|" + it.getAttribute("transform") + "|" + it.getAttribute("printable"), p.wipe_tower_x, p.wipe_tower_y];
+  }
   const fil = filamentosDe(partes.slice(0, 3));
   const fil3 = filamentosDe([{ color: "#abc" }, { color: "#AABBCC" }, { color: "#1c1c1c" }]);
   const blob = await construirProyectoBambu({ titulo: 'Feliz & "Cía" <3', partes, perfilBase: BAMBU_PERFIL, ajustes: {} });
@@ -47,7 +53,8 @@ const r = await page.evaluate(async () => {
     contId: cont.getAttribute("id"), comps: Array.from(modelo.getElementsByTagName("component")).map((c) => c.getAttribute("objectid") + "|" + c.getAttribute("p:path") + "|" + c.getAttribute("transform")),
     item: item.getAttribute("objectid") + "|" + item.getAttribute("transform") + "|" + item.getAttribute("printable"),
     uuids: (txt["3D/3dmodel.model"] + txt["3D/Objects/object_1.model"]).match(/UUID="[^"]+"/g) || [],
-    colores: ps.filament_colour, nFilSet: ps.filament_settings_id.length, matriz: ps.flush_volumes_matrix.length,
+    colores: ps.filament_colour, nFilSet: ps.filament_settings_id.length, matriz: ps.flush_volumes_matrix.length, torre: [ps.wipe_tower_x, ps.wipe_tower_y],
+    torreAlta: await colocacion(70, 250), torreGrande: await colocacion(260, 290),
     seq: txt["Metadata/filament_sequence.json"], rels: txt["3D/_rels/3dmodel.model.rels"].includes("/3D/Objects/object_1.model"),
   };
 });
@@ -66,7 +73,12 @@ ok(ig(r.caras, ["12", "12", "12"]) && r.tri0 === 12 && r.v0 === 8, "malla soldad
 ok(r.nObjetos === 3 && ig(r.idsObj, ["1", "2", "3"]) && r.contId === "4" && r.objMs === "4" && r.instObj === "4", "objeto contenedor id N+1 con sus 3 mallas");
 ok(r.objExt === "1" && r.objNombre === "Feliz & \"Cía\" <3" && r.modoMapa === "Auto For Flush", "objeto: extruder 1, nombre y Auto For Flush");
 ok(ig(r.comps, [1, 2, 3].map((k) => k + "|/3D/Objects/object_1.model|1 0 0 0 1 0 0 0 1 0 0 0")), "componentes con transformación identidad");
-ok(r.item === "4|1 0 0 0 1 0 0 0 1 175 160 0|1", "la pieza va al centro de la cama (175,160) apoyada en z=0");
+// cama de la H2D: 350 × 320. La pieza va centrada a lo ancho y hacia el frente; la torre de purga, 25 mm detrás.
+// (Con la pieza al centro y la torre en su sitio de fábrica, un topper alto de 8 colores no laminaba: la torre se salía.)
+ok(r.item === "4|1 0 0 0 1 0 0 0 1 175 29 0|1", "la pieza va centrada a lo ancho y al frente de la cama, apoyada en z=0: " + r.item);
+ok(JSON.stringify(r.torre) === JSON.stringify([["145"], ["69"]]), "la torre de purga queda 25 mm detrás de la pieza: " + JSON.stringify(r.torre));
+ok(JSON.stringify(r.torreAlta) === JSON.stringify(["4|1 0 0 0 1 0 0 0 1 175 139 0|1", ["235"], ["120"]]), "pieza muy alta y angosta: la torre va a la derecha: " + JSON.stringify(r.torreAlta));
+ok(JSON.stringify(r.torreGrande) === JSON.stringify(["4|1 0 0 0 1 0 0 0 1 175 160 0|1", ["225.4"], ["274.236"]]), "pieza que ocupa casi toda la cama: centro y torre de fábrica: " + JSON.stringify(r.torreGrande));
 ok(Math.abs(r.zmin) < 1e-6 && Math.abs(r.zmax - 4) < 1e-6 && Math.abs(r.cx) < 1e-6 && Math.abs(r.cy) < 1e-6, "malla centrada en XY y con z mínima 0");
 ok(r.uuids.length === 9 && new Set(r.uuids).size === 9 && r.uuids.every((u) => /^UUID="[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"$/.test(u)), "UUID válidos y distintos: " + r.uuids.length);
 ok(ig(r.colores, ["#F5F5F5", "#D32F2F"]) && r.nFilSet === 2 && r.matriz === 8, "ajustes del proyecto con 2 filamentos");
