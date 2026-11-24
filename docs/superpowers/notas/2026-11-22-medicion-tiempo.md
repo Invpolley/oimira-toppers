@@ -36,3 +36,21 @@ Laminado con el Bambu Studio real de Polley (02.09.01.70, H2D 0.4, perfil 0.20mm
 - La medida A de la figura PRO no era una impresión válida: Bambu Studio avisaba de "zonas flotantes" (capas de la figura en el aire). Con la geometría nueva ese aviso desapareció.
 - **No comprobado:** que la ventana de Bambu Studio muestre la capa de 0,25 al abrir el proyecto (por comandos sí la respeta y la conserva al guardar). Lo confirma Polley al abrir un archivo.
 - La purga usa la fórmula descrita en el PR 21 de bekuto3d; falta contrastarla con un proyecto recalculado por el Bambu Studio de Polley.
+
+## Base encajable (24-11-2026)
+
+Laminado con el Bambu Studio real (H2D, capa 0,25, relieve 1,0). Incluye topper + base en la misma cama.
+
+| Muestra | Palitos | Solapa trasera | Base encajable | Gramos (base encajable) |
+|---|---|---|---|---|
+| Aro 140×156 | 2242 s | 3780 s | 3785 s | 33,2 |
+| Contorno 148×197 (4 colores) | 5274 s | 7264 s | 7203 s | 73,2 |
+| Figura PRO 138×162 (8 colores) | 5146 s | 6903 s | 6754 s | 56,3 |
+| Rectángulo 140×86 | — | — | 3655 s | 45,2 |
+| Rosa clásica óvalo 140×220 | — | — | 7309 s | 96,0 |
+| Mariposas solo letras 152×204 | — | — | 6494 s | 64,9 |
+
+- En las seis: sin soportes, sin avisos, 0 mallas reparadas.
+- Tarda casi lo mismo que la solapa, pero el topper sale boca arriba, con relieve, y nada mide más de 14 mm de alto en la cama.
+- Una primera forma de la base (barra de 4 mm a todo el ancho) tardaba 15 min más y gastaba 14 g más: se descartó.
+- **No comprobado:** el ajuste real del encaje (depende de la impresora y el filamento). Lo confirma Polley imprimiendo; para eso está el campo de holgura.

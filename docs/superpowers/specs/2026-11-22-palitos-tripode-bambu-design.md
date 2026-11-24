@@ -133,3 +133,15 @@ Cada entrega se publica por separado, con respaldo de la versión anterior.
 ## 10. Dato que falta y solo tiene Polley
 
 Un proyecto cualquiera guardado desde su Bambu Studio (Archivo → Guardar proyecto, un `.3mf`). De ahí salen la versión del programa, la boquilla, el tipo de PLA, la placa y el perfil con el que lamina hoy. Sirve de modelo exacto para el formato y de línea base para medir el ahorro. Sin ese archivo se puede construir igual, pero con perfiles genéricos de H2D y mayor riesgo de que Bambu Studio pida confirmaciones al abrir.
+
+## 11. Agregado 24-11-2026: base encajable (apoyo de mesa en dos piezas)
+
+Pedido de Polley: "para arreglar el problema de la impresión una solución es imprimir en dos partes: el soporte que encaje en la pieza pero de forma segura".
+
+- Opción nueva en "Apoyo": **Base encajable (mesa, 2 piezas)**. Se conserva la solapa trasera de una pieza.
+- **Topper:** se imprime normal (boca arriba, con relieve) y gana abajo una lengüeta recta de 10 mm, centrada, de 45 a 85 mm de ancho.
+- **Base:** pieza aparte, del color de la placa, que se imprime tal como se usa (sin soportes): placa de 2,5 mm con un nervio de 14 mm que lleva la ranura inclinada 10° hacia atrás. La ranura mide grosor del topper + holgura; tiene tope a los dos lados, así el topper no se corre.
+- **Holgura del encaje** (campo nuevo, 0,2 mm por defecto, de 0,05 a 0,6): si entra flojo se baja, si no entra se sube.
+- **Fondo de la base:** según el alto del topper (de 40 a 110 mm), para aguantar unos 18° hacia adelante y 23° hacia atrás.
+- **Proyecto 3MF:** dos objetos en la misma cama (topper y «Base»). STL: un archivo más (`…-base.stl`).
+- **Vista 3D:** el topper aparece metido en su base, inclinado, sobre la mesa.

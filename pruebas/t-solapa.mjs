@@ -8,7 +8,7 @@ const { page, cerrar, errores } = await abrirApp();
 const ops = await page.evaluate(() => Array.from(document.querySelectorAll("#apoyo option")).map((o) => o.value + "=" + o.textContent));
 const hay = await page.evaluate(() => typeof baseSolapa === "function" && typeof solapaTrasera === "function" && typeof estabilidadMesa === "function");
 if (!ok(hay && ops.includes("solapa=Solapa trasera (mesa)"), "existe la opción «Solapa trasera (mesa)» y sus funciones: " + ops.join(", "))){ await cerrar(); fin(); }
-ok(!ops.some((o) => /^pie=|^pata=/.test(o)) && ops.length === 3, "el apoyo de mesa es uno solo (se retiró el pie delantero)");
+ok(!ops.some((o) => /^pie=|^pata=/.test(o)), "se retiró el pie delantero");
 
 const filas = [];
 for (const forma of FORMAS){

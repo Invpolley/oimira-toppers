@@ -310,6 +310,7 @@
           <div class="field"><label>Apoyo</label>
             <select id="apoyo">
               <option value="palitos" selected>Palitos (torta)</option>
+              <option value="base">Base encajable (mesa, 2 piezas)</option>
               <option value="solapa">Solapa trasera (mesa)</option>
               <option value="ninguno">Sin apoyo</option>
             </select></div>
@@ -321,6 +322,9 @@
           <div class="field" id="campoPalLen"><label>Largo mm</label><input id="palLen" type="number" value="45" min="20" max="90" /></div>
         </div>
         <input type="checkbox" id="palitos" checked hidden />
+        <div class="row" id="campoHolgura" style="display:none">
+          <div class="field"><label title="Cuánto más ancha que el topper es la ranura de la base. Si el topper entra flojo, baja este número; si no entra, súbelo.">Holgura del encaje mm</label><input id="holgura" type="number" value="0.2" min="0.05" max="0.6" step="0.05" /></div>
+        </div>
         <div id="apoyoNota" style="font-size:12px;color:#8a7f76;margin:-2px 0 6px"></div>
         <div id="apoyoMsg" class="msg"></div>
         <div class="field"><label class="chk"><input type="checkbox" id="bordeOn" /> Borde de color en la placa</label></div>
@@ -418,10 +422,10 @@
 <script src="adornos-data.js?v=3"></script>
 <script src="modelos-data.js?v=3"></script>
 <script src="bambu-perfil-data.js?v=2"></script>
-<script src="bambu-3mf.js?v=3"></script>
-<script src="apoyos.js?v=4"></script>
+<script src="bambu-3mf.js?v=4"></script>
+<script src="apoyos.js?v=5"></script>
 <script src="piezas.js?v=1"></script>
-<script src="app.js?v=37"></script>
+<script src="app.js?v=38"></script>
 <script>
 if ("serviceWorker" in navigator) addEventListener("load",()=>{ navigator.serviceWorker.register("sw.js?v=20260913").then(reg=>{ reg.update(); reg.addEventListener("updatefound",()=>{ const w=reg.installing; w&&w.addEventListener("statechange",()=>{ if(w.state==="activated"&&navigator.serviceWorker.controller) location.reload(); }); }); }).catch(()=>{}); });
 </script>

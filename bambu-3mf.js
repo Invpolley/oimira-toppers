@@ -110,7 +110,9 @@ function mallaSoldada(geo, dx, dy, dz){
 // y la lista de filamentos (colores) en los ajustes del proyecto. Devuelve Promise<Blob>.
 function construirProyectoBambu(o){
   var partes = (o.partes || []).filter(function(p){ return p.geo && p.geo.attributes && p.geo.attributes.position && p.geo.attributes.position.count >= 3; });
-  var fil = filamentosDe(partes), n = partes.length, idCont = n + 1, titulo = xmlEsc(o.titulo || "topper");
+  // extras: objetos aparte que van en la misma cama (por ejemplo la base encajable); cada uno es un objeto de una sola parte
+  var extras = (o.extras || []).filter(function(p){ return p.geo && p.geo.attributes && p.geo.attributes.position && p.geo.attributes.position.count >= 3; });
+  var fil = filamentosDe(partes.concat(extras)), n = partes.length, idCont = n + 1, titulo = xmlEsc(o.titulo || "topper");
   var VER = "02.09.01.70", cab = '<?xml version="1.0" encoding="UTF-8"?>\n';
   var NS = 'unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:BambuStudio="http://schemas.bambulab.com/package/2021" xmlns:p="http://schemas.microsoft.com/3dmanufacturing/production/2015/06" requiredextensions="p"';
   // recuadro del conjunto: centro XY al origen y apoyo en z = 0
@@ -131,11 +133,46 @@ function construirProyectoBambu(o){
   if (14 + altoP + 25 + 70 <= 308){ objY = 14 + altoP / 2; torre = [145, 14 + altoP + 25]; }
   else if (175 + anchoP / 2 + 25 + 60 <= 325 && 14 + altoP <= 308){ objY = 14 + altoP / 2; torre = [175 + anchoP / 2 + 25, 120]; }
   var mallas = partes.map(function(p){ return mallaSoldada(p.geo, dx, dy, dz); });
+  // Cada extra: malla centrada en su propio recuadro y apoyada en z = 0; ids = malla idCont+1+2k, objeto idCont+2+2k.
+  var ex = extras.map(function(p, k){
+    var a = p.geo.attributes.position, b = [Infinity, Infinity, Infinity, -Infinity, -Infinity];
+    for (var i = 0; i < a.count; i++){
+      var x = a.getX(i), y = a.getY(i), z = a.getZ(i);
+      if (x < b[0]) b[0] = x; if (y < b[1]) b[1] = y; if (z < b[2]) b[2] = z; if (x > b[3]) b[3] = x; if (y > b[4]) b[4] = y;
+    }
+    return { nombre: p.nombre, ext: fil.deParte[n + k], idMalla: idCont + 1 + 2 * k, idObj: idCont + 2 + 2 * k, ancho: b[3] - b[0], fondo: b[4] - b[1],
+             malla: mallaSoldada(p.geo, -(b[0] + b[3]) / 2, -(b[1] + b[4]) / 2, -b[2]), pos: null, girado: false };
+  });
+  // Con un extra (la base encajable): si queda sitio detras del topper, base y torre de purga van en esa fila, lado a
+  // lado. Si el topper es alto, el conjunto se arma en dos columnas: el topper a la izquierda y, a su derecha, la base
+  // (girada si hace falta) con la torre detras. Si nada cabe (topper enorme), la base queda a la derecha y Bambu Studio
+  // avisara del choque: toca reacomodar a mano.
+  var objX = 175;
+  if (ex.length){
+    var e0 = ex[0], filaY = 14 + altoP + 25, SEP = 15;
+    objY = 14 + altoP / 2; torre = null;
+    if (filaY + Math.max(70, e0.fondo) <= 308 && e0.ancho + SEP + 60 <= 300){
+      var xr = 175 - (e0.ancho + SEP + 60) / 2;
+      e0.pos = [xr + e0.ancho / 2, filaY + e0.fondo / 2]; torre = [xr + e0.ancho + SEP, filaY];
+    } else {
+      var libre = 300 - anchoP - SEP;
+      e0.girado = !(e0.ancho <= libre) && e0.fondo <= libre;
+      var bw = e0.girado ? e0.fondo : e0.ancho, bd = e0.girado ? e0.ancho : e0.fondo, col = Math.max(bw, 60);
+      var xi = Math.max(25, 175 - (anchoP + SEP + col) / 2);
+      objX = xi + anchoP / 2;
+      e0.pos = [xi + anchoP + SEP + bw / 2, 14 + bd / 2];
+      torre = [xi + anchoP + SEP, 14 + bd + SEP];
+    }
+    for (var q = 1; q < ex.length; q++) ex[q].pos = [e0.pos[0], ex[q - 1].pos[1] + ex[q - 1].fondo / 2 + 10 + ex[q].fondo / 2];
+  }
   var hoy = new Date().toISOString().slice(0, 10), ID = "1 0 0 0 1 0 0 0 1 0 0 0";
 
   var objetos = cab + '<model ' + NS + '>\n <metadata name="BambuStudio:3mfVersion">1</metadata>\n <resources>\n' +
     mallas.map(function(m, i){
       return '  <object id="' + (i + 1) + '" p:UUID="' + uuidDe(1, i) + '" type="model">\n   <mesh>\n    <vertices>' + m.verts.join("") + '</vertices>\n    <triangles>' + m.tris.join("") + '</triangles>\n   </mesh>\n  </object>\n';
+    }).join("") +
+    ex.map(function(e, k){
+      return '  <object id="' + e.idMalla + '" p:UUID="' + uuidDe(1, n + k) + '" type="model">\n   <mesh>\n    <vertices>' + e.malla.verts.join("") + '</vertices>\n    <triangles>' + e.malla.tris.join("") + '</triangles>\n   </mesh>\n  </object>\n';
     }).join("") + ' </resources>\n</model>\n';
 
   var metas = [["Application", "BambuStudio-" + VER], ["BambuStudio:3mfVersion", "1"], ["Copyright", ""], ["CreationDate", hoy], ["Description", ""], ["Designer", ""],
@@ -143,7 +180,14 @@ function construirProyectoBambu(o){
   var modelo = cab + '<model ' + NS + '>\n' + metas.map(function(m){ return ' <metadata name="' + m[0] + '">' + xmlEsc(m[1]) + '</metadata>\n'; }).join("") +
     ' <resources>\n  <object id="' + idCont + '" p:UUID="' + uuidDe(2, 0) + '" type="model">\n   <components>\n' +
     partes.map(function(p, i){ return '    <component p:path="/3D/Objects/object_1.model" objectid="' + (i + 1) + '" p:UUID="' + uuidDe(3, i) + '" transform="' + ID + '"/>\n'; }).join("") +
-    '   </components>\n  </object>\n </resources>\n <build p:UUID="' + uuidDe(4, 0) + '">\n  <item objectid="' + idCont + '" p:UUID="' + uuidDe(5, 0) + '" transform="1 0 0 0 1 0 0 0 1 175 ' + n3(objY) + ' 0" printable="1"/>\n </build>\n</model>\n';
+    '   </components>\n  </object>\n' +
+    ex.map(function(e, k){
+      return '  <object id="' + e.idObj + '" p:UUID="' + uuidDe(2, 1 + k) + '" type="model">\n   <components>\n    <component p:path="/3D/Objects/object_1.model" objectid="' + e.idMalla + '" p:UUID="' + uuidDe(3, n + k) + '" transform="' + ID + '"/>\n   </components>\n  </object>\n';
+    }).join("") +
+    ' </resources>\n <build p:UUID="' + uuidDe(4, 0) + '">\n  <item objectid="' + idCont + '" p:UUID="' + uuidDe(5, 0) + '" transform="1 0 0 0 1 0 0 0 1 ' + n3(objX) + ' ' + n3(objY) + ' 0" printable="1"/>\n' +
+    ex.map(function(e, k){
+      return '  <item objectid="' + e.idObj + '" p:UUID="' + uuidDe(5, 1 + k) + '" transform="' + (e.girado ? "0 1 0 -1 0 0 0 0 1 " : "1 0 0 0 1 0 0 0 1 ") + n3(e.pos[0]) + ' ' + n3(e.pos[1]) + ' 0" printable="1"/>\n';
+    }).join("") + ' </build>\n</model>\n';
 
   var carasTot = mallas.reduce(function(s, m){ return s + m.tris.length; }, 0);
   var ajustesModelo = cab + '<config>\n  <object id="' + idCont + '">\n    <metadata key="name" value="' + titulo + '"/>\n    <metadata key="extruder" value="1"/>\n    <metadata face_count="' + carasTot + '"/>\n' +
@@ -152,10 +196,19 @@ function construirProyectoBambu(o){
         '      <metadata key="extruder" value="' + fil.deParte[i] + '"/>\n' +
         '      <mesh_stat face_count="' + mallas[i].tris.length + '" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>\n    </part>\n';
     }).join("") +
-    '  </object>\n  <plate>\n    <metadata key="plater_id" value="1"/>\n    <metadata key="plater_name" value=""/>\n    <metadata key="locked" value="false"/>\n    <metadata key="filament_map_mode" value="Auto For Flush"/>\n' +
-    '    <model_instance>\n      <metadata key="object_id" value="' + idCont + '"/>\n      <metadata key="instance_id" value="0"/>\n      <metadata key="identify_id" value="' + (100 + idCont) + '"/>\n    </model_instance>\n  </plate>\n  <assemble>\n' +
+    '  </object>\n' +
+    ex.map(function(e){
+      return '  <object id="' + e.idObj + '">\n    <metadata key="name" value="' + xmlEsc(e.nombre) + '"/>\n    <metadata key="extruder" value="' + e.ext + '"/>\n    <metadata face_count="' + e.malla.tris.length + '"/>\n' +
+        '    <part id="' + e.idMalla + '" subtype="normal_part">\n      <metadata key="name" value="' + xmlEsc(e.nombre) + '"/>\n      <metadata key="matrix" value="1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1"/>\n      <metadata key="extruder" value="' + e.ext + '"/>\n' +
+        '      <mesh_stat face_count="' + e.malla.tris.length + '" edges_fixed="0" degenerate_facets="0" facets_removed="0" facets_reversed="0" backwards_edges="0"/>\n    </part>\n  </object>\n';
+    }).join("") +
+    '  <plate>\n    <metadata key="plater_id" value="1"/>\n    <metadata key="plater_name" value=""/>\n    <metadata key="locked" value="false"/>\n    <metadata key="filament_map_mode" value="Auto For Flush"/>\n' +
+    [idCont].concat(ex.map(function(e){ return e.idObj; })).map(function(id){
+      return '    <model_instance>\n      <metadata key="object_id" value="' + id + '"/>\n      <metadata key="instance_id" value="0"/>\n      <metadata key="identify_id" value="' + (100 + id) + '"/>\n    </model_instance>\n';
+    }).join("") + '  </plate>\n  <assemble>\n' +
     '   <assemble_item object_id="' + idCont + '" instance_id="0" transform="' + ID + '" offset="0 0 0" />\n' +
     partes.map(function(p, i){ return '   <assemble_item object_id="' + idCont + '" volume_id="' + i + '" transform="' + ID + '" />\n'; }).join("") +
+    ex.map(function(e){ return '   <assemble_item object_id="' + e.idObj + '" instance_id="0" transform="' + ID + '" offset="0 0 0" />\n'; }).join("") +
     '  </assemble>\n</config>\n';
 
   var zip = new JSZip();
@@ -169,7 +222,7 @@ function construirProyectoBambu(o){
   if (torre){ ajustesProyecto.wipe_tower_x = [n3(torre[0])]; ajustesProyecto.wipe_tower_y = [n3(torre[1])]; }
   zip.file("Metadata/project_settings.config", JSON.stringify(ajustesProyecto, null, 4));
   zip.file("Metadata/slice_info.config", cab + '<config>\n  <header>\n    <header_item key="X-BBL-Client-Type" value="slicer"/>\n    <header_item key="X-BBL-Client-Version" value="' + VER + '"/>\n  </header>\n</config>\n');
-  zip.file("Metadata/cut_information.xml", '<?xml version="1.0" encoding="utf-8"?>\n<objects>\n <object id="1">\n  <cut_id id="0" check_sum="1" connectors_cnt="0"/>\n </object>\n</objects>\n');
+  zip.file("Metadata/cut_information.xml", '<?xml version="1.0" encoding="utf-8"?>\n<objects>\n' + [0].concat(ex.map(function(e, k){ return k + 1; })).map(function(k){ return ' <object id="' + (k + 1) + '">\n  <cut_id id="0" check_sum="1" connectors_cnt="0"/>\n </object>\n'; }).join("") + '</objects>\n');
   zip.file("Metadata/filament_sequence.json", '{"plate_1":{"nozzle_sequence":[],"optimal_assignment":[],"sequence":[]}}');
   return zip.generateAsync({ type: "blob", mimeType: "model/3mf", compression: "DEFLATE", compressionOptions: { level: 6 } });
 }

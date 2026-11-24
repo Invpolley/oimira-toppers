@@ -1,6 +1,6 @@
 #!/bin/bash
 # Corre las pruebas de Toppers. Uso: bash pruebas/todas.sh [--todo]   (TP_URL=https://… para t-exportar contra el sitio publicado)
-# La revisión cruzada (t-matriz: 12 modelos × 5 formas × 4 apoyos) tarda unos 12 minutos: solo corre con --todo.
+# La revisión cruzada (t-matriz: 12 modelos × 5 formas × 5 apoyos) tarda unos 15 minutos: solo corre con --todo.
 cd "$(dirname "$0")/.." || exit 1
 mal=0
 for t in pruebas/t-*.mjs; do

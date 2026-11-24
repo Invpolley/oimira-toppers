@@ -724,6 +724,23 @@ function construir(){
     apoyoGeo = st.geo;
     apoyoDatos = { tipo: "solapa", yBase: bs.yBase, x0: bs.x0, x1: bs.x1, largo: st.largo, inclinacion: SOLAPA_INCLINACION, grosor: grosor };
   }
+  // --- apoyo de mesa en dos piezas: lengueta en el topper + base aparte con ranura (ver apoyos.js) ---
+  var baseMesa = null;
+  if (apoyo === "base" && plateShapes.length){
+    var rectaB = null;
+    if (forma === "rect"){ var rEsqB = Math.min(10, plateHmm * 0.2); rectaB = { y: -plateHmm / 2, x0: -plateWmm / 2 + rEsqB + 2, x1: plateWmm / 2 - rEsqB - 2 }; }
+    var bb = baseSolapa(plateShapes.slice(), rectaB);
+    bb.shapes.forEach(function(s){ plateShapes.push(s); });
+    var anchoL = anchoLengueta(bb.x1 - bb.x0), cxL = (bb.x0 + bb.x1) / 2; // lengueta centrada, mas angosta que el borde recto
+    bb.x0 = cxL - anchoL / 2; bb.x1 = cxL + anchoL / 2;
+    plateShapes.push(barra(bb.x0, bb.yBase - BASE_LENGUETA, bb.x1, bb.yBase + 1)); // la lengueta que entra en la ranura
+    plateHmm += BASE_LENGUETA + (bb.shapes.length ? 6 : 0);
+    var holg = Math.min(0.6, Math.max(0.05, Number((document.getElementById("holgura") || {}).value) || 0.2));
+    baseMesa = baseEncajable({ x0: bb.x0, x1: bb.x1, grosor: grosor, holgura: holg, alto: apRecuadro(plateShapes).y1 - (bb.yBase - BASE_LENGUETA) });
+    baseMesa.yFrente = -baseMesa.ranura.fondoAtras[0]; // en la vista, el rincon de la ranura queda sobre el origen
+    apoyoDatos = { tipo: "base", yBase: bb.yBase, yFondo: bb.yBase - BASE_LENGUETA, x0: bb.x0, x1: bb.x1, inclinacion: SOLAPA_INCLINACION, grosor: grosor,
+                   base: { fondo: baseMesa.fondo, rincon: baseMesa.ranura.fondoAtras, masa: apMasa([{ extra: baseMesa.geo }]) } };
+  }
   // --- presencia de cada parte ---
   // Las mallas ya no se arman aqui: la vista y las descargas salen de las piezas de impresion (ver `solidos` mas
   // abajo y piezas.js). placa/texto/motivo/adorno/borde quedan como marcas (true o null) de "esta parte existe".
@@ -781,7 +798,7 @@ function construir(){
   // d2: las mismas piezas en 2D (mm) para miniaturas y comprobacion de uniones
   var d2 = { placa: plateShapes, texto: textMm, motivo: motMm, adorno: adMm, borde: bordeShapes, capas: capasMm, nPalitos: nPal, palitosX: palX, palPedidos: palPed };
   return { placa: gPlaca, texto: gTexto, motivo: gMot, motivoCapas: gCapas, adorno: gAd, borde: gBorde,
-           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2, solidos: solidos, apoyo: apoyoDatos, apoyoGeo: apoyoGeo };
+           anchoMm: Math.round(plateWmm), altoMm: Math.round(plateHmm), forma: forma, d2: d2, solidos: solidos, apoyo: apoyoDatos, apoyoGeo: apoyoGeo, base: baseMesa };
 }
 
 /* ================= Vista previa 3D ================= */
@@ -800,23 +817,34 @@ var grupo = new THREE.Group(); scene.add(grupo);
 var mesa = new THREE.Mesh(new THREE.CircleGeometry(1, 72), new THREE.MeshStandardMaterial({ color: 0x8f6f52, roughness: 0.95, metalness: 0 })); // madera: contrasta con una placa clara
 mesa.visible = false; scene.add(mesa);
 var PARADO = false;
+// Base encajable (apoyo de mesa en dos piezas): en la vista se muestra armada, con el topper metido en su ranura.
+var mallaBase = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.55, metalness: 0.05 }));
+mallaBase.userData.rol = "base"; mallaBase.visible = false; scene.add(mallaBase);
 var TIP_ACOSTADO = "Arrastra el motivo o adorno para moverlo · arrastra el fondo para girar";
 var TIP_PARADO = "Así queda parado en la mesa · arrastra el fondo para girarlo y ver la solapa por detrás";
+var TIP_BASE = "Así queda parado en su base · arrastra el fondo para girarlo";
 function pintarPostura(b){
   var parado = !!(b && b.apoyo);
   if (parado){
     // el eje "arriba" de la placa pasa a ser el de la escena y el frente mira a la cámara, inclinado hacia atrás como
     // queda de verdad; la arista de atrás-abajo (donde apoya y de donde sale la solapa) va al origen, sobre la mesa
-    var ang = Math.PI / 2 - (b.apoyo.inclinacion || 0) * Math.PI / 180, yB = b.apoyo.yBase;
+    var ang = Math.PI / 2 - (b.apoyo.inclinacion || 0) * Math.PI / 180, yB = b.apoyo.yBase, zApoyo = 0, fondoMesa = b.apoyo.largo || 0;
+    if (b.base){ yB = b.apoyo.yFondo; zApoyo = b.base.ranura.fondoAtras[1]; fondoMesa = b.base.fondo; } // la arista asienta en el rincon de la ranura
     grupo.rotation.set(ang, 0, 0);
-    grupo.position.set(0, -yB * Math.cos(ang), -yB * Math.sin(ang));
+    grupo.position.set(0, -yB * Math.cos(ang), zApoyo - yB * Math.sin(ang));
     var r = Math.max(110, b.anchoMm * 0.8);
-    mesa.scale.set(r, r, 1); mesa.position.set(0, b.apoyo.largo / 3, -0.2);
+    mesa.scale.set(r, r, 1); mesa.position.set(0, fondoMesa / 3, -0.2);
   } else {
     grupo.rotation.set(0, 0, 0); grupo.position.set(0, 0, 0);
   }
   mesa.visible = parado;
-  var tip = document.querySelector(".canvas-tip"); if (tip) tip.textContent = parado ? TIP_PARADO : TIP_ACOSTADO;
+  mallaBase.visible = !!(b && b.base);
+  if (b && b.base){
+    mallaBase.geometry.dispose(); mallaBase.geometry = b.base.geo;
+    mallaBase.material.color.set(b.solidos[0].color);
+    mallaBase.position.set(0, b.base.yFrente, 0);
+  }
+  var tip = document.querySelector(".canvas-tip"); if (tip) tip.textContent = !parado ? TIP_ACOSTADO : (b.base ? TIP_BASE : TIP_PARADO);
   if (parado !== PARADO){ PARADO = parado; encuadrar(); } // al cambiar de postura se vuelve a encuadrar
 }
 
@@ -840,7 +868,7 @@ function refrescar(){
     if (viejo.material) viejo.material.dispose();
   }
   GEOS = null;
-  if (!b) return;
+  if (!b){ mallaBase.visible = false; return; }
   GEOS = b;
   // La vista muestra las mismas piezas que se descargan (regla de profundidad de color, piezas.js)
   b.piezas = piezasDeImpresion(b.solidos, profColorActual());
@@ -924,7 +952,7 @@ document.getElementById("btnCentrar").onclick = function(){
   refrescar();
 };
 
-// Apoyo elegido: "palitos" (torta) | "solapa" (solapa trasera, mesa) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
+// Apoyo elegido: "palitos" (torta) | "base" (base encajable, mesa, 2 piezas) | "solapa" (solapa trasera, mesa, 1 pieza) | "ninguno". La casilla vieja #palitos queda oculta y sincronizada.
 function apoyoActual(){
   var el = document.getElementById("apoyo");
   return el && el.value ? el.value : ($("#palitos").checked ? "palitos" : "ninguno");
@@ -934,13 +962,14 @@ function pintarApoyo(){
   $("#palitos").checked = (a === "palitos");
   ["campoPalN", "campoPalLen"].forEach(function(id){ var el = document.getElementById(id); if (el) el.style.display = (a === "palitos") ? "" : "none"; });
   var nota = document.getElementById("apoyoNota");
-  if (nota) nota.textContent = a === "solapa" ? "Queda inclinado 10° hacia atrás, apoyado en la solapa. Se imprime boca abajo: el frente es liso, sin relieve. Para mesas, no para tortas." : "";
+  var ch = document.getElementById("campoHolgura"); if (ch) ch.style.display = (a === "base") ? "" : "none";
+  if (nota) nota.textContent = a === "base" ? "Son 2 piezas: el topper se imprime normal, con relieve, y encaja en una base aparte que lo deja inclinado 10° hacia atrás. Para mesas, no para tortas." : a === "solapa" ? "Queda inclinado 10° hacia atrás, apoyado en la solapa. Se imprime boca abajo: el frente es liso, sin relieve. Para mesas, no para tortas." : "";
   var rel = document.getElementById("relieve"); if (rel) rel.disabled = (a === "solapa");
 }
 document.getElementById("apoyo").addEventListener("change", pintarApoyo);
 document.getElementById("profColor").addEventListener("change", function(){ this.value = profColorActual().toFixed(1); });
 function programarRefresco(){ clearTimeout(renderTimer); renderTimer = setTimeout(function(){ refrescar(); registrarEstado(); pintarPasos(); }, 350); }
-["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","profColor","apoyo","palN","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
+["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","adPos","adTam","ancho","grosor","relieve","profColor","holgura","apoyo","palN","palLen","c1","c2","c3","c4","c5","bordeOn","motRot","adRot"].forEach(function(id){
   var el = document.getElementById(id);
   el.addEventListener("input", programarRefresco);
   el.addEventListener("change", programarRefresco);
@@ -1066,8 +1095,12 @@ function partesParaExportar(){
     return { nombre: pz.nombre, color: pz.color, rol: pz.rol, geo: geo };
   });
 }
+// Objetos aparte que van en la misma cama (hoy: la base encajable), del color de la placa.
+function extrasParaExportar(){
+  return GEOS.base ? [{ nombre: "Base", color: GEOS.solidos[0].color, rol: "base", geo: GEOS.base.geo }] : [];
+}
 function construir3mf(){
-  return construirProyectoBambu({ titulo: nombreArchivo(""), partes: partesParaExportar(), perfilBase: window.BAMBU_PERFIL, ajustes: window.BAMBU_AJUSTES });
+  return construirProyectoBambu({ titulo: nombreArchivo(""), partes: partesParaExportar(), extras: extrasParaExportar(), perfilBase: window.BAMBU_PERFIL, ajustes: window.BAMBU_AJUSTES });
 }
 function nombreArchivo(ext){
   var base = ($("#l1").value.trim() || "topper").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").slice(0,30);
@@ -1091,7 +1124,7 @@ $("#btnStl").onclick = async function(){
   if (!GEOS || !GEOS.placa) return msgEl("dlMsg", "Escribe al menos una línea de texto.", true);
   msgEl("dlMsg", "Generando STLs…");
   var zip = new JSZip();
-  partesParaExportar().forEach(function(pt, i){ // un STL por pieza de impresion, igual orden y postura que el proyecto 3MF
+  partesParaExportar().concat(extrasParaExportar()).forEach(function(pt, i){ // un STL por pieza de impresion (y la base, si hay), igual orden y postura que el proyecto 3MF
     var slug = pt.nombre.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-");
     zip.file((i + 1) + "-" + slug + (pt.rol === "capa" ? "-" + pt.color.replace("#", "") : "") + ".stl", stlBinario(pt.geo));
   });
@@ -1342,7 +1375,7 @@ document.getElementById("btnAddFil").onclick = async function(){
 /* ================= Bocetos por cliente (guardar / continuar) ================= */
 var BOCETO = null; // { id, cliente, telefono } del boceto abierto
 function estadoDiseno(){
-  var ids = ["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","apoyo","palN","profColor","c1","c2","c3","c4","c5"];
+  var ids = ["l1","l2","l3","fuente","arco","placa","estiloMot","motPos","motTam","motRot","adPos","adTam","adRot","ancho","grosor","relieve","palLen","apoyo","palN","profColor","holgura","c1","c2","c3","c4","c5"];
   var o = { campos: {} };
   ids.forEach(function(id){ var el = document.getElementById(id); if (el) o.campos[id] = el.value; });
   o.palitos = apoyoActual() === "palitos"; // campo viejo: lo siguen leyendo las versiones anteriores de la app
@@ -1364,6 +1397,7 @@ function aplicarDiseno(o, sinRefrescar){
   else if (cpA.apoyo === undefined || !$("#apoyo").value) $("#apoyo").value = o.palitos ? "palitos" : "ninguno";
   if (cpA.palN === undefined || !$("#palN").value) $("#palN").value = "auto";
   var pcEl = document.getElementById("profColor"); if (pcEl && cpA.profColor === undefined) pcEl.value = "1.0";
+  var hgEl = document.getElementById("holgura"); if (hgEl && cpA.holgura === undefined) hgEl.value = "0.2";
   pintarApoyo();
   if (document.getElementById("bordeOn")) $("#bordeOn").checked = !!o.bordeOn;
   MOTIVO_SEL = o.motivo || null;
@@ -1843,6 +1877,10 @@ function abrirExportar(){
       (GEOS.apoyo && GEOS.apoyo.tipo === "solapa" ? (function(){
           var est = estabilidadMesa(GEOS.piezas, "solapa", GEOS.apoyo);
           return "<br>Solapa trasera para mesa · se imprime boca abajo, con el frente liso · aguanta " + Math.round(est.adelante) + "° hacia adelante y " + Math.round(est.atras) + "° hacia atrás";
+        })()
+        : GEOS.apoyo && GEOS.apoyo.tipo === "base" ? (function(){
+          var est = estabilidadMesa(GEOS.piezas, "base", GEOS.apoyo);
+          return "<br>Base encajable para mesa · 2 piezas en la misma cama: el topper y su base · aguanta " + Math.round(est.adelante) + "° hacia adelante y " + Math.round(est.atras) + "° hacia atrás";
         })()
         : GEOS.d2.nPalitos ? "<br>" + GEOS.d2.nPalitos + " palito" + (GEOS.d2.nPalitos === 1 ? " integrado" : "s integrados") + " de " + $("#palLen").value + " mm" : "<br>Sin apoyo");
   }

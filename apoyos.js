@@ -88,6 +88,62 @@ function solapaTrasera(b, alto){
   g.computeVertexNormals();
   return { geo: g, largo: F };
 }
+// ---- Base encajable: apoyo de mesa en dos piezas ----
+// El topper se imprime normal (boca arriba, con relieve) y lleva abajo una lengueta recta de BASE_LENGUETA mm.
+// La base se imprime aparte, tal como se usa: una placa baja (BASE_PLACA) con un nervio de BASE_ALTO mm que tiene la
+// ranura inclinada donde entra la lengueta; deja el topper inclinado SOLAPA_INCLINACION grados hacia atras.
+// La ranura mide grosor + holgura; la lengueta asienta en el fondo de la ranura (los hombros del topper no tocan).
+// Para gastar poco material y tiempo, la base es mas angosta que el topper: la lengueta mide lo que dice anchoLengueta.
+function anchoLengueta(disponible){ return Math.min(disponible, Math.max(45, Math.min(85, 0.55 * disponible))); }
+var BASE_LENGUETA = 10, BASE_ALTO = 14, BASE_PLACA = 2.5, BASE_TAPA = 6;
+var BASE_ADELANTE = 18, BASE_ATRAS = 23; // grados de aguante que se buscan al dimensionar la base
+var BASE_RELLENO = 0.5; // la base va con relleno: para el equilibrio se cuenta la mitad de su volumen (prudente)
+// d = { x0, x1 (extremos de la lengueta), grosor, holgura, alto (alto del topper) }.
+// Devuelve la malla de la base en sus propias coordenadas (X = ancho, Y = fondo desde el frente, Z = alto desde la
+// mesa) y las medidas de la ranura; fondoAtras = [y, z] del rincon donde asienta la arista de atras-abajo del topper.
+function baseEncajable(d){
+  var f = SOLAPA_INCLINACION * Math.PI / 180, sn = Math.sin(f), cs = Math.cos(f);
+  var Hb = BASE_ALTO, hp = BASE_PLACA, w = d.grosor + d.holgura;
+  var L = BASE_LENGUETA - w * sn / cs - 0.3; // hondo de la ranura por su pared de adelante: los hombros quedan 0.3 mm por encima de la base
+  // Fondo de la base y sitio de la ranura segun el alto del topper: se supone su centro de masa a media altura y se
+  // deja margen para que aguante BASE_ADELANTE grados hacia el frente y BASE_ATRAS hacia atras sin contar el peso de la base.
+  var zc = 0.5 * d.alto, dv = zc * cs + 5, du = zc * sn;
+  var uS = Math.max(10, dv * Math.tan(BASE_ADELANTE * Math.PI / 180) - du + L * sn - w * cs);
+  var Db = Math.min(110, Math.max(40, uS - L * sn + w * cs + du + dv * Math.tan(BASE_ATRAS * Math.PI / 180)));
+  var Ft = [uS, Hb], Fb = [uS - L * sn, Hb - L * cs], Rb = [Fb[0] + w * cs, Fb[1] - w * sn], Rt = [uS + w / cs, Hb];
+  var ua = uS - 4, ub = Rt[0] + 3.5; // caras del nervio: 4 mm de pared adelante y 3.5 atras, medidas arriba
+  function arco(cx, cy, r, a0, a1){ // puntos intermedios y final de un arco (sin el inicial)
+    var o = [], n = 5; for (var i = 1; i <= n; i++){ var t = a0 + (a1 - a0) * i / n; o.push([cx + r * Math.cos(t), cy + r * Math.sin(t)]); } return o;
+  }
+  // perfil de lado (u = fondo, v = alto), en sentido antihorario; Rt y Ft quedan seguidos: entre ellos se abre la ranura
+  var P = [[0, 0], [Db, 0], [Db, hp - 1.5]].concat(arco(Db - 1.5, hp - 1.5, 1.5, 0, Math.PI / 2), [[ub, hp], [ub, Hb - 2]], arco(ub - 2, Hb - 2, 2, 0, Math.PI / 2));
+  var iRt = P.length; P.push(Rt, Ft, [ua + 2, Hb]);
+  P = P.concat(arco(ua + 2, Hb - 2, 2, Math.PI / 2, Math.PI), [[ua, hp], [1.5, hp]], arco(1.5, hp - 1.5, 1.5, Math.PI / 2, Math.PI));
+  var S = [Ft, Fb, Rb, Rt]; // la ranura (hueco), antihoraria
+  var xs0 = d.x0 - d.holgura, xs1 = d.x1 + d.holgura, xa = xs0 - BASE_TAPA, xb = xs1 + BASE_TAPA, X = [xa, xs0, xs1, xb], pos = [];
+  function v3(q, x){ pos.push(x, q[0], q[1]); }
+  function cuad(A, B, x0, x1, alReves){ // pared entre dos puntos del perfil, de x0 a x1
+    if (alReves){ v3(A, x0); v3(B, x1); v3(B, x0); v3(A, x0); v3(A, x1); v3(B, x1); }
+    else { v3(A, x0); v3(B, x0); v3(B, x1); v3(A, x0); v3(B, x1); v3(A, x1); }
+  }
+  function tapa(pol, x, alReves){ // cara plana con la forma de un poligono, mirando a +X (o a -X si alReves)
+    var pts = pol.map(function(q){ return new THREE.Vector2(q[0], q[1]); });
+    THREE.ShapeUtils.triangulateShape(pts, []).forEach(function(t){
+      if (alReves){ v3(pol[t[0]], x); v3(pol[t[2]], x); v3(pol[t[1]], x); } else { v3(pol[t[0]], x); v3(pol[t[1]], x); v3(pol[t[2]], x); }
+    });
+  }
+  for (var i = 0; i < P.length; i++){
+    var A = P[i], B = P[(i + 1) % P.length];
+    for (var k = 0; k < 3; k++) if (!(i === iRt && k === 1)) cuad(A, B, X[k], X[k + 1], false); // sobre la ranura no hay techo
+  }
+  for (var j = 0; j < 3; j++) cuad(S[j], S[j + 1], xs0, xs1, true); // paredes y fondo de la ranura
+  tapa(S, xs0, false); tapa(S, xs1, true);                          // sus dos extremos
+  tapa(P, xa, true); tapa(P, xb, false);                            // costados de la base
+  var geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(new Float32Array(pos), 3));
+  geo.computeVertexNormals();
+  return { geo: geo, fondo: Db, alto: Hb, ancho: xb - xa, ranura: { ancho: w, largo: xs1 - xs0, hondo: L, fondoAtras: Rb, frenteArriba: Ft } };
+}
 // Volumen (mm3) y centro de masa de un conjunto de piezas (prismas + mallas extra), suponiendo un solo material.
 function apMasa(piezas){
   var V = 0, mx = 0, my = 0, mz = 0;
@@ -121,14 +177,27 @@ function apMasa(piezas){
   });
   return V > 0 ? { vol: V, x: mx / V, y: my / V, z: mz / V } : null;
 }
-// Estabilidad del topper parado en una mesa con la solapa: grados que hay que inclinarlo para que el centro de masa
-// se salga de la huella de apoyo, hacia adelante (el frente) y hacia atras. datos = { yBase, largo, inclinacion }.
-// La huella va de la arista de atras-abajo de la placa (adelante) hasta el extremo de la solapa (atras).
+// Estabilidad del topper parado en una mesa: grados que hay que inclinarlo para que el centro de masa se salga de la
+// huella de apoyo, hacia adelante (el frente) y hacia atras.
+//  - "solapa": datos = { yBase, largo, inclinacion }. La huella va de la arista de atras-abajo de la placa hasta
+//    el extremo de la solapa.
+//  - "base":   datos = { yFondo, inclinacion, base: { fondo, rincon: [y, z], masa } }. Topper y base cuentan como un
+//    solo cuerpo (van encajados); la huella es el fondo de la base.
 function estabilidadMesa(piezas, apoyo, datos){
   var m = apMasa(piezas);
-  if (!m || apoyo !== "solapa") return { adelante: 0, atras: 0 };
-  var G = 180 / Math.PI, f = datos.inclinacion / G, dy = m.y - datos.yBase;
-  var atrasMm = dy * Math.sin(f) - m.z * Math.cos(f); // cuanto queda el centro de masa detras de la arista de apoyo
-  var alto = dy * Math.cos(f) + m.z * Math.sin(f);    // altura del centro de masa sobre la mesa
-  return { adelante: Math.atan2(atrasMm, alto) * G, atras: Math.atan2(datos.largo - atrasMm, alto) * G };
+  if (!m) return { adelante: 0, atras: 0 };
+  var G = 180 / Math.PI, f = datos.inclinacion / G, sn = Math.sin(f), cs = Math.cos(f);
+  if (apoyo === "solapa"){
+    var dy = m.y - datos.yBase;
+    var atrasMm = dy * sn - m.z * cs; // cuanto queda el centro de masa detras de la arista de apoyo
+    var alto = dy * cs + m.z * sn;    // altura del centro de masa sobre la mesa
+    return { adelante: Math.atan2(atrasMm, alto) * G, atras: Math.atan2(datos.largo - atrasMm, alto) * G };
+  }
+  if (apoyo === "base"){
+    var b = datos.base, dyb = m.y - datos.yFondo;
+    var u = b.rincon[0] + dyb * sn - m.z * cs, v = b.rincon[1] + dyb * cs + m.z * sn; // centro de masa del topper, medido desde el frente de la base
+    var vb = b.masa.vol * BASE_RELLENO, V = m.vol + vb, U = (u * m.vol + b.masa.y * vb) / V, Z = (v * m.vol + b.masa.z * vb) / V;
+    return { adelante: Math.atan2(U, Z) * G, atras: Math.atan2(b.fondo - U, Z) * G };
+  }
+  return { adelante: 0, atras: 0 };
 }
